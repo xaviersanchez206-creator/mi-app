@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -8,36 +9,54 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <style>
-    #map { height: 400px; }
+    body { font-family: Arial; text-align: center; }
+    #map { height: 400px; margin-top: 10px; }
+    input, button { padding: 10px; margin: 5px; }
   </style>
 </head>
 <body>
 
-<h2>Destino</h2>
+<h2>Alarma por ubicación</h2>
 
-<input id="direccion" placeholder="Escribí una dirección">
+<input id="direccion" placeholder="Escribí dirección (opcional)">
 <button onclick="buscarDireccion()">Buscar</button>
 
-<p id="estado">Esperando...</p>
+<br>
+
+<label>Avisar cuando falten (km):</label>
+<input id="radio" type="number" value="0.3" step="0.1">
+
+<br>
+
+<button onclick="centrarUsuario()">📍 Mi ubicación</button>
+
+<p id="estado">Elegí un destino tocando el mapa o buscando una dirección</p>
 
 <div id="map"></div>
+
+<audio id="alarma" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
 
 <script>
 let map = L.map('map').setView([-34.6, -58.38], 13);
 let marcadorDestino = null;
+let marcadorUsuario = null;
 let destino = null;
+let alarmaActiva = false;
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// Seleccionar manualmente
+// 📍 Selección manual MEJORADA
 map.on('click', function(e) {
   let lat = e.latlng.lat;
   let lon = e.latlng.lng;
 
-  ponerDestino(lat, lon);
+  if (confirm("¿Querés usar este punto como destino?")) {
+    ponerDestino(lat, lon);
+    map.setView([lat, lon], 16);
+  }
 });
 
-// Buscar dirección
+// 🔎 Buscar dirección
 function buscarDireccion() {
   let dir = document.getElementById("direccion").value;
 
@@ -49,17 +68,18 @@ function buscarDireccion() {
         return;
       }
 
-      let lat = data[0].lat;
-      let lon = data[0].lon;
+      let lat = parseFloat(data[0].lat);
+      let lon = parseFloat(data[0].lon);
 
       ponerDestino(lat, lon);
-      map.setView([lat, lon], 15);
+      map.setView([lat, lon], 16);
     });
 }
 
-// Colocar destino
+// 🎯 Poner destino
 function ponerDestino(lat, lon) {
   destino = { lat, lon };
+  alarmaActiva = false;
 
   if (marcadorDestino) {
     map.removeLayer(marcadorDestino);
@@ -68,29 +88,48 @@ function ponerDestino(lat, lon) {
   marcadorDestino = L.marker([lat, lon]).addTo(map);
 
   document.getElementById("estado").innerText =
-    "Destino: " + lat + ", " + lon;
-
-  iniciarGPS();
+    "Destino seleccionado ✔";
 }
 
-// GPS + distancia
-function iniciarGPS() {
-  navigator.geolocation.watchPosition(pos => {
-    let lat = pos.coords.latitude;
-    let lon = pos.coords.longitude;
-
-    let distancia = calcularDistancia(lat, lon, destino.lat, destino.lon);
-
-    document.getElementById("estado").innerText =
-      "Distancia: " + distancia.toFixed(2) + " km";
-
-    if (distancia < 0.1) {
-      alert("¡Llegaste al destino!");
-    }
+// 📍 Centrar usuario
+function centrarUsuario() {
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setView([pos.coords.latitude, pos.coords.longitude], 16);
   });
 }
 
-// fórmula distancia
+// 🚗 GPS en tiempo real
+navigator.geolocation.watchPosition(pos => {
+  let lat = pos.coords.latitude;
+  let lon = pos.coords.longitude;
+
+  // marcador usuario
+  if (marcadorUsuario) {
+    marcadorUsuario.setLatLng([lat, lon]);
+  } else {
+    marcadorUsuario = L.marker([lat, lon]).addTo(map);
+  }
+
+  if (!destino) return;
+
+  let distancia = calcularDistancia(lat, lon, destino.lat, destino.lon);
+  let radio = parseFloat(document.getElementById("radio").value);
+
+  document.getElementById("estado").innerText =
+    "Distancia: " + distancia.toFixed(2) + " km";
+
+  if (distancia < radio && !alarmaActiva) {
+    alarmaActiva = true;
+    document.getElementById("estado").innerText = "¡Estás llegando!";
+    document.getElementById("alarma").play();
+  }
+
+}, error => {
+  document.getElementById("estado").innerText =
+    "Error GPS: activá la ubicación";
+});
+
+// 📏 Cálculo distancia
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   let R = 6371;
   let dLat = (lat2 - lat1) * Math.PI / 180;
