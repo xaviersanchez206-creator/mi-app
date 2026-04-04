@@ -2,40 +2,84 @@
 <html>
 <head>
   <title>Alarma GPS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    #map { height: 400px; }
+  </style>
 </head>
 <body>
 
-<h2>Alarma por ubicación</h2>
+<h2>Destino</h2>
 
-<input id="destino" placeholder="Pegá link de Google Maps">
-<br><br>
-
-<button onclick="iniciar()">IR</button>
+<input id="direccion" placeholder="Escribí una dirección">
+<button onclick="buscarDireccion()">Buscar</button>
 
 <p id="estado">Esperando...</p>
 
+<div id="map"></div>
+
 <script>
-let destinoLat = null;
-let destinoLon = null;
+let map = L.map('map').setView([-34.6, -58.38], 13);
+let marcadorDestino = null;
+let destino = null;
 
-function iniciar() {
-  let link = document.getElementById("destino").value;
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  let match = link.match(/q=(-?\d+.\d+),(-?\d+.\d+)/);
+// Seleccionar manualmente
+map.on('click', function(e) {
+  let lat = e.latlng.lat;
+  let lon = e.latlng.lng;
 
-  if (!match) {
-    document.getElementById("estado").innerText = "Link inválido";
-    return;
+  ponerDestino(lat, lon);
+});
+
+// Buscar dirección
+function buscarDireccion() {
+  let dir = document.getElementById("direccion").value;
+
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${dir}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.length === 0) {
+        alert("Dirección no encontrada");
+        return;
+      }
+
+      let lat = data[0].lat;
+      let lon = data[0].lon;
+
+      ponerDestino(lat, lon);
+      map.setView([lat, lon], 15);
+    });
+}
+
+// Colocar destino
+function ponerDestino(lat, lon) {
+  destino = { lat, lon };
+
+  if (marcadorDestino) {
+    map.removeLayer(marcadorDestino);
   }
 
-  destinoLat = parseFloat(match[1]);
-  destinoLon = parseFloat(match[2]);
+  marcadorDestino = L.marker([lat, lon]).addTo(map);
 
+  document.getElementById("estado").innerText =
+    "Destino: " + lat + ", " + lon;
+
+  iniciarGPS();
+}
+
+// GPS + distancia
+function iniciarGPS() {
   navigator.geolocation.watchPosition(pos => {
     let lat = pos.coords.latitude;
     let lon = pos.coords.longitude;
 
-    let distancia = calcularDistancia(lat, lon, destinoLat, destinoLon);
+    let distancia = calcularDistancia(lat, lon, destino.lat, destino.lon);
 
     document.getElementById("estado").innerText =
       "Distancia: " + distancia.toFixed(2) + " km";
@@ -46,6 +90,7 @@ function iniciar() {
   });
 }
 
+// fórmula distancia
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   let R = 6371;
   let dLat = (lat2 - lat1) * Math.PI / 180;
