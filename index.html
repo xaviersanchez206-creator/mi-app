@@ -1,41 +1,65 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Alarma con GPS</title>
+  <title>Alarma GPS</title>
 </head>
 <body>
 
-<h2>Ubicación en tiempo real</h2>
+<h2>Alarma por ubicación</h2>
 
-<button onclick="iniciarGPS()">Activar GPS</button>
+<input id="destino" placeholder="Pegá link de Google Maps">
+<br><br>
 
-<p id="estado">Esperando ubicación...</p>
+<button onclick="iniciar()">IR</button>
+
+<p id="estado">Esperando...</p>
 
 <script>
-let watchID;
+let destinoLat = null;
+let destinoLon = null;
 
-function iniciarGPS() {
-  if (!navigator.geolocation) {
-    document.getElementById("estado").innerText = "GPS no soportado";
+function iniciar() {
+  let link = document.getElementById("destino").value;
+
+  let match = link.match(/q=(-?\d+.\d+),(-?\d+.\d+)/);
+
+  if (!match) {
+    document.getElementById("estado").innerText = "Link inválido";
     return;
   }
 
-  watchID = navigator.geolocation.watchPosition(
-    (pos) => {
-      let lat = pos.coords.latitude;
-      let lon = pos.coords.longitude;
+  destinoLat = parseFloat(match[1]);
+  destinoLon = parseFloat(match[2]);
 
-      document.getElementById("estado").innerText =
-        "Lat: " + lat + " | Lon: " + lon;
-    },
-    (err) => {
-      document.getElementById("estado").innerText = "Error GPS";
-    },
-    {
-      enableHighAccuracy: true
+  navigator.geolocation.watchPosition(pos => {
+    let lat = pos.coords.latitude;
+    let lon = pos.coords.longitude;
+
+    let distancia = calcularDistancia(lat, lon, destinoLat, destinoLon);
+
+    document.getElementById("estado").innerText =
+      "Distancia: " + distancia.toFixed(2) + " km";
+
+    if (distancia < 0.1) {
+      alert("¡Llegaste al destino!");
     }
-  );
+  });
+}
+
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+  let R = 6371;
+  let dLat = (lat2 - lat1) * Math.PI / 180;
+  let dLon = (lon2 - lon1) * Math.PI / 180;
+
+  let a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI/180) *
+    Math.cos(lat2 * Math.PI/180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+
+  let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
 }
 </script>
 
