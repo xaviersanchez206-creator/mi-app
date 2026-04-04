@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Alarma con GPS</title>
+</head>
+<body>
+
+<h2>Ubicación en tiempo real</h2>
+
+<button onclick="iniciarGPS()">Activar GPS</button>
+
+<p id="estado">Esperando ubicación...</p>
+
+<script>
+let watchID;
+
+function iniciarGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById("estado").innerText = "GPS no soportado";
+    return;
+  }
+
+  watchID = navigator.geolocation.watchPosition(
+    (pos) => {
+      let lat = pos.coords.latitude;
+      let lon = pos.coords.longitude;
+
+      document.getElementById("estado").innerText =
+        "Lat: " + lat + " | Lon: " + lon;
+    },
+    (err) => {
+      document.getElementById("estado").innerText = "Error GPS";
+    },
+    {
+      enableHighAccuracy: true
+    }
+  );
+}
+</script>
+
+</body>
+</html>
