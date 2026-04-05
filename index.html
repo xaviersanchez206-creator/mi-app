@@ -9,7 +9,6 @@
 
 <style>
 body { margin:0; font-family: Arial; }
-
 #map { height:100vh; }
 
 .barra {
@@ -80,7 +79,7 @@ button { padding:10px; }
 <audio id="alarma" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
 
 <script>
-let map=L.map('map').setView([-34.6,-58.38],15);
+let map = L.map('map').setView([-34.6,-58.38],15);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -104,7 +103,7 @@ navigator.geolocation.watchPosition(pos=>{
     map.setView([lat,lon],16);
   }
 
-  if(!destino)return;
+  if(!destino) return;
 
   let d=calcularDistancia(lat,lon,destino.lat,destino.lon);
 
@@ -114,7 +113,7 @@ navigator.geolocation.watchPosition(pos=>{
 
 });
 
-// BUSCAR
+// 🔎 BUSCAR DIRECCIÓN (CORREGIDO)
 function buscarDireccion(){
   let dir=document.getElementById("direccion").value;
 
@@ -127,9 +126,7 @@ function buscarDireccion(){
   .then(r=>r.json())
   .then(data=>{
     if(data.length===0){
-      if(confirm("No encontrada. ¿Elegir manual?")){
-        activarManual();
-      }
+      alert("No encontrada. Probá mantener presionado en el mapa.");
       return;
     }
 
@@ -139,23 +136,45 @@ function buscarDireccion(){
     document.getElementById("direccion").value=data[0].display_name;
 
     ponerDestino(lat,lon);
+
+    // 🔥 CLAVE: centra SIEMPRE
+    map.setView([lat,lon],17);
+
     mostrarOpciones();
   });
 }
 
-// MANUAL
+// 📍 SELECCIÓN MANUAL CORREGIDA
+let presionando=false;
 let timer;
-function activarManual(){
-  map.on("mousedown",e=>{
-    timer=setTimeout(()=>{
-      ponerDestino(e.latlng.lat,e.latlng.lng);
-      document.getElementById("direccion").value=
-        e.latlng.lat.toFixed(5)+","+e.latlng.lng.toFixed(5);
+
+map.on("mousedown", function(e){
+  presionando=true;
+
+  timer=setTimeout(()=>{
+    if(presionando){
+      let lat=e.latlng.lat;
+      let lon=e.latlng.lng;
+
+      ponerDestino(lat,lon);
+
+      document.getElementById("direccion").value =
+        lat.toFixed(5)+","+lon.toFixed(5);
+
       mostrarOpciones();
-    },2000);
-  });
-  map.on("mouseup",()=>clearTimeout(timer));
-}
+    }
+  },2000);
+});
+
+map.on("mouseup", function(){
+  presionando=false;
+  clearTimeout(timer);
+});
+
+map.on("mouseout", function(){
+  presionando=false;
+  clearTimeout(timer);
+});
 
 // DESTINO
 function ponerDestino(lat,lon){
@@ -168,16 +187,23 @@ function ponerDestino(lat,lon){
   marcadorDestino=L.marker([lat,lon]).addTo(map);
 }
 
-// OPCIONES DISTANCIA
+// DISTANCIAS
 function mostrarOpciones(){
   let panel=document.getElementById("panelDistancia");
   let cont=document.getElementById("opciones");
+
   cont.innerHTML="";
 
   for(let i=100;i<=2000;i+=100){
     let btn=document.createElement("button");
-    btn.innerText=i;
-    btn.onclick=()=>seleccion=i;
+    btn.innerText=i+"m";
+
+    btn.onclick=()=>{
+      seleccion=i;
+      document.querySelectorAll(".grid button").forEach(b=>b.style.background="");
+      btn.style.background="lightgreen";
+    };
+
     cont.appendChild(btn);
   }
 
@@ -189,8 +215,6 @@ function confirmarDistancia(){
   radio=seleccion/1000;
 
   if(destino){
-    if(circulo) map.removeLayer(circulo);
-
     circulo=L.circle([destino.lat,destino.lon],{
       radius: radio*1000,
       color:"red",
@@ -228,15 +252,11 @@ function guardarLugar(){
   }
 
   let nombre=prompt("Nombre del lugar:");
-  if(!nombre)return;
+  if(!nombre) return;
 
   let lugares=JSON.parse(localStorage.getItem("lugares")||"[]");
 
-  lugares.push({
-    nombre,
-    lat:destino.lat,
-    lon:destino.lon
-  });
+  lugares.push({nombre,lat:destino.lat,lon:destino.lon});
 
   localStorage.setItem("lugares",JSON.stringify(lugares));
 
