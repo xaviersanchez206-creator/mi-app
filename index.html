@@ -18,10 +18,53 @@ body { margin:0; font-family: Arial; }
   right:10px;
   z-index:1000;
   display:flex;
+  gap:5px;
 }
 
 input { flex:1; padding:10px; }
 button { padding:10px; }
+
+/* HUD */
+#distanciaHUD {
+  position:absolute;
+  bottom:20px;
+  right:10px;
+  background:black;
+  color:white;
+  padding:12px;
+  z-index:1500;
+  border-radius:8px;
+  display:none;
+  line-height:1.4;
+}
+
+/* BOTON DETENER */
+#btnDetener {
+  position:absolute;
+  bottom:20px;
+  left:20px;
+  z-index:2000;
+  padding:12px;
+  background:red;
+  color:white;
+  border:none;
+  border-radius:8px;
+  display:none;
+}
+
+/* GUARDADOS */
+#panelGuardados {
+  position:absolute;
+  top:60px;
+  right:10px;
+  background:white;
+  z-index:1500;
+  padding:10px;
+  max-height:200px;
+  overflow:auto;
+  border-radius:5px;
+  display:none;
+}
 
 #panelDistancia {
   position:absolute;
@@ -53,10 +96,11 @@ button { padding:10px; }
   z-index:3000;
 }
 
+/* UBICACION (corregido) */
 #btnUbicacion {
   position:absolute;
-  bottom:20px;
-  left:70px;
+  bottom:80px;
+  left:20px;
   z-index:1500;
   padding:10px;
 }
@@ -69,9 +113,16 @@ button { padding:10px; }
   <input id="direccion" placeholder="Escribí dirección">
   <button onclick="buscarDireccion()">Buscar</button>
   <button onclick="guardarLugar()">💾</button>
+  <button onclick="toggleGuardados()">⋮</button>
 </div>
 
 <div id="map"></div>
+
+<div id="distanciaHUD"></div>
+
+<button id="btnDetener" onclick="detenerAlarma()">DETENER</button>
+
+<div id="panelGuardados"></div>
 
 <button id="btnUbicacion" onclick="irMiUbicacion()">Mi ubicación</button>
 
@@ -90,9 +141,7 @@ button { padding:10px; }
 
 <script>
 let map = L.map('map',{zoomControl:false}).setView([-34.6,-58.38],15);
-
 L.control.zoom({position:'bottomleft'}).addTo(map);
-
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let marcadorUsuario=null;
@@ -104,6 +153,7 @@ let alarmaActiva=false;
 let seleccion=300;
 let ubicacionActual=null;
 let distanciaActual=0;
+let intervaloAlarma=null;
 
 // GPS
 navigator.geolocation.watchPosition(pos=>{
@@ -122,23 +172,26 @@ navigator.geolocation.watchPosition(pos=>{
   if(!destino) return;
 
   let d=calcularDistancia(lat,lon,destino.lat,destino.lon);
+  let nuevaDist = d * 1000;
 
-  // ✅ distancia SIEMPRE actualizada
-  distanciaActual = d * 1000;
+  if(Math.abs(distanciaActual - nuevaDist) > 5){
+    distanciaActual = nuevaDist;
+    actualizarHUD();
+  }
 
-  if(d<radio && !alarmaActiva){
+  if(d < radio && !alarmaActiva && destino){
     activarAlarma();
   }
 });
 
-// 📍 MI UBICACIÓN
+// UBICACION
 function irMiUbicacion(){
   if(ubicacionActual){
     map.setView(ubicacionActual,16);
   }
 }
 
-// 🔎 BUSCADOR
+// BUSCAR
 function buscarDireccion(){
   let dir=document.getElementById("direccion").value;
 
@@ -147,13 +200,13 @@ function buscarDireccion(){
     return;
   }
 
-  dir = dir + ", Argentina";
+  dir += ", Argentina";
 
   fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(dir)}`)
   .then(r=>r.json())
   .then(data=>{
     if(data.length===0){
-      alert("No encontrada. Probá en el mapa.");
+      alert("No encontrada");
       return;
     }
 
@@ -163,14 +216,12 @@ function buscarDireccion(){
     document.getElementById("direccion").value=data[0].display_name;
 
     ponerDestino(lat,lon);
-
     map.setView([lat,lon],17);
-
     mostrarOpciones();
   });
 }
 
-// 📍 CLICK DERECHO
+// CLICK
 map.on("contextmenu", function(e){
   let lat=e.latlng.lat;
   let lon=e.latlng.lng;
@@ -193,52 +244,63 @@ function ponerDestino(lat,lon){
 
   marcadorDestino=L.marker([lat,lon]).addTo(map);
 
+  document.getElementById("distanciaHUD").style.display = "block";
+
   if(ubicacionActual){
-    distanciaActual = calcularDistancia(
+    let d = calcularDistancia(
       ubicacionActual[0],
       ubicacionActual[1],
       lat,
       lon
-    ) * 1000;
+    );
+
+    distanciaActual = d * 1000;
+    actualizarHUD();
   }
 }
 
-// DISTANCIAS
+// ACTUALIZA HUD
+function actualizarHUD(){
+  let texto = "Distancia: " + Math.round(distanciaActual) + " m";
+
+  if(radio){
+    texto += "<br>Alarma: " + seleccion + " m";
+  }
+
+  document.getElementById("distanciaHUD").innerHTML = texto;
+}
+
+// OPCIONES
 function mostrarOpciones(){
   if(!ubicacionActual){
-    alert("Esperando ubicación GPS...");
+    alert("Esperando GPS...");
     return;
   }
 
-  if(distanciaActual <= 0){
-    alert("No se pudo calcular la distancia aún");
-    return;
-  }
-
-  let panel=document.getElementById("panelDistancia");
   let cont=document.getElementById("opciones");
-
   cont.innerHTML="";
 
-  let maxPermitido = Math.floor((distanciaActual - 100)/100)*100;
+  let maxReal = Math.floor((distanciaActual - 100)/100)*100;
 
-  if(maxPermitido < 100){
-    alert("Estás demasiado cerca del destino");
+  if(maxReal < 100){
+    alert("Estás demasiado cerca");
     return;
   }
 
-  let minPermitido = 100;
+  let maxFinal = Math.min(maxReal, 3000);
 
-  if(distanciaActual > 500) minPermitido = 200;
-  if(distanciaActual > 1000) minPermitido = 300;
-
-  for(let i=minPermitido;i<=2000;i+=100){
-    if(i>maxPermitido) continue;
-
+  for(let i=100;i<=3000;i+=100){
     let btn=document.createElement("button");
     btn.innerText=i+"m";
 
+    if(i > maxFinal){
+      btn.disabled = true;
+      btn.style.opacity = "0.3";
+    }
+
     btn.onclick=()=>{
+      if(i > maxFinal) return;
+
       seleccion=i;
       document.querySelectorAll(".grid button").forEach(b=>b.style.background="");
       btn.style.background="lightgreen";
@@ -247,46 +309,33 @@ function mostrarOpciones(){
     cont.appendChild(btn);
   }
 
-  panel.style.display="block";
+  document.getElementById("panelDistancia").style.display="block";
 }
 
 // CONFIRMAR
 function confirmarDistancia(){
   radio=seleccion/1000;
 
-  if(destino){
-    circulo=L.circle([destino.lat,destino.lon],{
-      radius: radio*1000,
-      color:"red",
-      fill:false
-    }).addTo(map);
-  }
+  if(circulo) map.removeLayer(circulo);
+
+  circulo=L.circle([destino.lat,destino.lon],{
+    radius: radio*1000,
+    color:"red",
+    fill:false
+  }).addTo(map);
 
   document.getElementById("panelDistancia").style.display="none";
   document.getElementById("barra").style.display="none";
 
-  crearBotonCancelar();
+  document.getElementById("btnDetener").style.display="block";
 
-  alert("Despertador activado ✔");
-}
-
-// CANCELAR
-function crearBotonCancelar(){
-  let btn=document.createElement("button");
-  btn.id="cancelar";
-  btn.innerText="CANCELAR";
-  btn.style.position="absolute";
-  btn.style.top="10px";
-  btn.style.right="10px";
-  btn.style.zIndex="2000";
-
-  btn.onclick=resetearApp;
-
-  document.body.appendChild(btn);
+  actualizarHUD();
 }
 
 // ALARMA
 function activarAlarma(){
+  if(alarmaActiva) return;
+
   alarmaActiva=true;
 
   document.getElementById("panelAlarma").style.display="block";
@@ -294,10 +343,9 @@ function activarAlarma(){
   let audio=document.getElementById("alarma");
   audio.play();
 
-  // 📳 vibración
-  if(navigator.vibrate){
-    navigator.vibrate([500,200,500,200,500]);
-  }
+  intervaloAlarma=setInterval(()=>{
+    audio.play();
+  },5000);
 }
 
 // DETENER
@@ -311,7 +359,10 @@ function resetearApp(){
   audio.pause();
   audio.currentTime=0;
 
+  clearInterval(intervaloAlarma);
+
   document.getElementById("panelAlarma").style.display="none";
+  document.getElementById("btnDetener").style.display="none";
 
   destino=null;
   alarmaActiva=false;
@@ -322,28 +373,53 @@ function resetearApp(){
   document.getElementById("direccion").value="";
   document.getElementById("barra").style.display="flex";
 
-  let btn=document.getElementById("cancelar");
-  if(btn) btn.remove();
+  document.getElementById("distanciaHUD").style.display="none";
 }
 
-// GUARDAR
+// GUARDADOS
+function cargarGuardados(){
+  let cont=document.getElementById("panelGuardados");
+  cont.innerHTML="<b>Guardados</b><br>";
+
+  let lugares=JSON.parse(localStorage.getItem("lugares")||"[]");
+
+  lugares.forEach(l=>{
+    let btn=document.createElement("button");
+    btn.innerText=l.nombre;
+
+    btn.onclick=()=>{
+      ponerDestino(l.lat,l.lon);
+      map.setView([l.lat,l.lon],17);
+      mostrarOpciones();
+    };
+
+    cont.appendChild(btn);
+  });
+}
+
+function toggleGuardados(){
+  let panel=document.getElementById("panelGuardados");
+  panel.style.display = (panel.style.display === "none") ? "block" : "none";
+}
+
 function guardarLugar(){
   if(!destino){
     alert("No hay destino");
     return;
   }
 
-  let nombre=prompt("Nombre del lugar:");
+  let nombre=prompt("Nombre:");
   if(!nombre) return;
 
   let lugares=JSON.parse(localStorage.getItem("lugares")||"[]");
-
   lugares.push({nombre,lat:destino.lat,lon:destino.lon});
 
   localStorage.setItem("lugares",JSON.stringify(lugares));
 
-  alert("Guardado ✔");
+  cargarGuardados();
 }
+
+cargarGuardados();
 
 // DISTANCIA
 function calcularDistancia(lat1,lon1,lat2,lon2){
