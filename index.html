@@ -1,149 +1,262 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Alarma GPS</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alarma GPS PRO</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <style>
-    body { font-family: Arial; text-align: center; }
-    #map { height: 400px; margin-top: 10px; }
-    input, button { padding: 10px; margin: 5px; }
-  </style>
+<style>
+body { margin:0; font-family: Arial; }
+
+#map { height:100vh; }
+
+.barra {
+  position:absolute;
+  top:10px;
+  left:10px;
+  right:10px;
+  z-index:1000;
+  display:flex;
+}
+
+input { flex:1; padding:10px; }
+button { padding:10px; }
+
+#panelDistancia {
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  background:white;
+  padding:15px;
+  display:none;
+  z-index:2000;
+}
+
+.grid {
+  display:grid;
+  grid-template-columns: repeat(5,1fr);
+  gap:5px;
+}
+
+#panelAlarma {
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  background:red;
+  color:white;
+  text-align:center;
+  padding:20px;
+  display:none;
+  z-index:3000;
+}
+</style>
 </head>
+
 <body>
 
-<h2>Alarma por ubicación</h2>
-
-<input id="direccion" placeholder="Escribí dirección (opcional)">
-<button onclick="buscarDireccion()">Buscar</button>
-
-<br>
-
-<label>Avisar cuando falten (km):</label>
-<input id="radio" type="number" value="0.3" step="0.1">
-
-<br>
-
-<button onclick="centrarUsuario()">📍 Mi ubicación</button>
-
-<p id="estado">Elegí un destino tocando el mapa o buscando una dirección</p>
+<div class="barra">
+  <input id="direccion" placeholder="Escribí dirección">
+  <button onclick="buscarDireccion()">Buscar</button>
+  <button onclick="guardarLugar()">💾</button>
+</div>
 
 <div id="map"></div>
+
+<div id="panelDistancia">
+  <h3>Elegí distancia (metros)</h3>
+  <div class="grid" id="opciones"></div>
+  <button onclick="confirmarDistancia()">ACEPTAR</button>
+</div>
+
+<div id="panelAlarma">
+  <h2>¡LLEGANDO!</h2>
+  <button onclick="detenerAlarma()">DETENER</button>
+</div>
 
 <audio id="alarma" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
 
 <script>
-let map = L.map('map').setView([-34.6, -58.38], 13);
-let marcadorDestino = null;
-let marcadorUsuario = null;
-let destino = null;
-let alarmaActiva = false;
+let map=L.map('map').setView([-34.6,-58.38],15);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 📍 Selección manual MEJORADA
-map.on('click', function(e) {
-  let lat = e.latlng.lat;
-  let lon = e.latlng.lng;
+let marcadorUsuario=null;
+let marcadorDestino=null;
+let circulo=null;
+let destino=null;
+let radio=0.3;
+let alarmaActiva=false;
+let seleccion=300;
 
-  if (confirm("¿Querés usar este punto como destino?")) {
-    ponerDestino(lat, lon);
-    map.setView([lat, lon], 16);
+// GPS
+navigator.geolocation.watchPosition(pos=>{
+  let lat=pos.coords.latitude;
+  let lon=pos.coords.longitude;
+
+  if(marcadorUsuario){
+    marcadorUsuario.setLatLng([lat,lon]);
+  }else{
+    marcadorUsuario=L.circleMarker([lat,lon],{radius:8,color:"blue"}).addTo(map);
+    map.setView([lat,lon],16);
   }
+
+  if(!destino)return;
+
+  let d=calcularDistancia(lat,lon,destino.lat,destino.lon);
+
+  if(d<radio && !alarmaActiva){
+    activarAlarma();
+  }
+
 });
 
-// 🔎 Buscar dirección
-function buscarDireccion() {
-  let dir = document.getElementById("direccion").value;
+// BUSCAR
+function buscarDireccion(){
+  let dir=document.getElementById("direccion").value;
 
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${dir}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.length === 0) {
-        alert("Dirección no encontrada");
-        return;
-      }
-
-      let lat = parseFloat(data[0].lat);
-      let lon = parseFloat(data[0].lon);
-
-      ponerDestino(lat, lon);
-      map.setView([lat, lon], 16);
-    });
-}
-
-// 🎯 Poner destino
-function ponerDestino(lat, lon) {
-  destino = { lat, lon };
-  alarmaActiva = false;
-
-  if (marcadorDestino) {
-    map.removeLayer(marcadorDestino);
+  if(!dir){
+    alert("Escribí una dirección");
+    return;
   }
 
-  marcadorDestino = L.marker([lat, lon]).addTo(map);
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${dir}`)
+  .then(r=>r.json())
+  .then(data=>{
+    if(data.length===0){
+      if(confirm("No encontrada. ¿Elegir manual?")){
+        activarManual();
+      }
+      return;
+    }
 
-  document.getElementById("estado").innerText =
-    "Destino seleccionado ✔";
-}
+    let lat=parseFloat(data[0].lat);
+    let lon=parseFloat(data[0].lon);
 
-// 📍 Centrar usuario
-function centrarUsuario() {
-  navigator.geolocation.getCurrentPosition(pos => {
-    map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+    document.getElementById("direccion").value=data[0].display_name;
+
+    ponerDestino(lat,lon);
+    mostrarOpciones();
   });
 }
 
-// 🚗 GPS en tiempo real
-navigator.geolocation.watchPosition(pos => {
-  let lat = pos.coords.latitude;
-  let lon = pos.coords.longitude;
+// MANUAL
+let timer;
+function activarManual(){
+  map.on("mousedown",e=>{
+    timer=setTimeout(()=>{
+      ponerDestino(e.latlng.lat,e.latlng.lng);
+      document.getElementById("direccion").value=
+        e.latlng.lat.toFixed(5)+","+e.latlng.lng.toFixed(5);
+      mostrarOpciones();
+    },2000);
+  });
+  map.on("mouseup",()=>clearTimeout(timer));
+}
 
-  // marcador usuario
-  if (marcadorUsuario) {
-    marcadorUsuario.setLatLng([lat, lon]);
-  } else {
-    marcadorUsuario = L.marker([lat, lon]).addTo(map);
+// DESTINO
+function ponerDestino(lat,lon){
+  destino={lat,lon};
+  alarmaActiva=false;
+
+  if(marcadorDestino) map.removeLayer(marcadorDestino);
+  if(circulo) map.removeLayer(circulo);
+
+  marcadorDestino=L.marker([lat,lon]).addTo(map);
+}
+
+// OPCIONES DISTANCIA
+function mostrarOpciones(){
+  let panel=document.getElementById("panelDistancia");
+  let cont=document.getElementById("opciones");
+  cont.innerHTML="";
+
+  for(let i=100;i<=2000;i+=100){
+    let btn=document.createElement("button");
+    btn.innerText=i;
+    btn.onclick=()=>seleccion=i;
+    cont.appendChild(btn);
   }
 
-  if (!destino) return;
+  panel.style.display="block";
+}
 
-  let distancia = calcularDistancia(lat, lon, destino.lat, destino.lon);
-  let radio = parseFloat(document.getElementById("radio").value);
+// CONFIRMAR
+function confirmarDistancia(){
+  radio=seleccion/1000;
 
-  document.getElementById("estado").innerText =
-    "Distancia: " + distancia.toFixed(2) + " km";
+  if(destino){
+    if(circulo) map.removeLayer(circulo);
 
-  if (distancia < radio && !alarmaActiva) {
-    alarmaActiva = true;
-    document.getElementById("estado").innerText = "¡Estás llegando!";
-    document.getElementById("alarma").play();
+    circulo=L.circle([destino.lat,destino.lon],{
+      radius: radio*1000,
+      color:"red",
+      fill:false
+    }).addTo(map);
   }
 
-}, error => {
-  document.getElementById("estado").innerText =
-    "Error GPS: activá la ubicación";
-});
+  document.getElementById("panelDistancia").style.display="none";
 
-// 📏 Cálculo distancia
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-  let R = 6371;
-  let dLat = (lat2 - lat1) * Math.PI / 180;
-  let dLon = (lon2 - lon1) * Math.PI / 180;
+  alert("Despertador reiniciado ✔");
+}
 
-  let a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI/180) *
-    Math.cos(lat2 * Math.PI/180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
+// ALARMA
+function activarAlarma(){
+  alarmaActiva=true;
+  document.getElementById("panelAlarma").style.display="block";
+  document.getElementById("alarma").play();
 
-  let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  if(navigator.vibrate){
+    navigator.vibrate([500,500,500]);
+  }
+}
 
-  return R * c;
+function detenerAlarma(){
+  document.getElementById("panelAlarma").style.display="none";
+  document.getElementById("alarma").pause();
+  document.getElementById("alarma").currentTime=0;
+}
+
+// GUARDAR
+function guardarLugar(){
+  if(!destino){
+    alert("No hay destino");
+    return;
+  }
+
+  let nombre=prompt("Nombre del lugar:");
+  if(!nombre)return;
+
+  let lugares=JSON.parse(localStorage.getItem("lugares")||"[]");
+
+  lugares.push({
+    nombre,
+    lat:destino.lat,
+    lon:destino.lon
+  });
+
+  localStorage.setItem("lugares",JSON.stringify(lugares));
+
+  alert("Guardado ✔");
+}
+
+// DISTANCIA
+function calcularDistancia(lat1,lon1,lat2,lon2){
+  let R=6371;
+  let dLat=(lat2-lat1)*Math.PI/180;
+  let dLon=(lon2-lon1)*Math.PI/180;
+
+  let a=Math.sin(dLat/2)**2+
+  Math.cos(lat1*Math.PI/180)*
+  Math.cos(lat2*Math.PI/180)*
+  Math.sin(dLon/2)**2;
+
+  let c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+
+  return R*c;
 }
 </script>
 
