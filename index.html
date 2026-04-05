@@ -113,7 +113,7 @@ navigator.geolocation.watchPosition(pos=>{
 
 });
 
-// 🔎 BUSCAR DIRECCIÓN (CORREGIDO)
+// 🔎 BUSCADOR MEJORADO
 function buscarDireccion(){
   let dir=document.getElementById("direccion").value;
 
@@ -122,11 +122,13 @@ function buscarDireccion(){
     return;
   }
 
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${dir}`)
+  dir = dir + ", Argentina";
+
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(dir)}`)
   .then(r=>r.json())
   .then(data=>{
     if(data.length===0){
-      alert("No encontrada. Probá mantener presionado en el mapa.");
+      alert("No encontrada. Probá marcar en el mapa.");
       return;
     }
 
@@ -137,43 +139,26 @@ function buscarDireccion(){
 
     ponerDestino(lat,lon);
 
-    // 🔥 CLAVE: centra SIEMPRE
     map.setView([lat,lon],17);
 
     mostrarOpciones();
+  })
+  .catch(()=>{
+    alert("Error de conexión");
   });
 }
 
-// 📍 SELECCIÓN MANUAL CORREGIDA
-let presionando=false;
-let timer;
+// 📍 SELECCIÓN MANUAL (ARREGLADA DEFINITIVA)
+map.on("contextmenu", function(e){
+  let lat = e.latlng.lat;
+  let lon = e.latlng.lng;
 
-map.on("mousedown", function(e){
-  presionando=true;
+  ponerDestino(lat, lon);
 
-  timer=setTimeout(()=>{
-    if(presionando){
-      let lat=e.latlng.lat;
-      let lon=e.latlng.lng;
+  document.getElementById("direccion").value =
+    lat.toFixed(5) + "," + lon.toFixed(5);
 
-      ponerDestino(lat,lon);
-
-      document.getElementById("direccion").value =
-        lat.toFixed(5)+","+lon.toFixed(5);
-
-      mostrarOpciones();
-    }
-  },2000);
-});
-
-map.on("mouseup", function(){
-  presionando=false;
-  clearTimeout(timer);
-});
-
-map.on("mouseout", function(){
-  presionando=false;
-  clearTimeout(timer);
+  mostrarOpciones();
 });
 
 // DESTINO
@@ -224,24 +209,40 @@ function confirmarDistancia(){
 
   document.getElementById("panelDistancia").style.display="none";
 
-  alert("Despertador reiniciado ✔");
+  alert("Despertador activado ✔");
 }
 
-// ALARMA
+// 🔔 ALARMA
 function activarAlarma(){
   alarmaActiva=true;
+
   document.getElementById("panelAlarma").style.display="block";
-  document.getElementById("alarma").play();
+
+  let audio=document.getElementById("alarma");
+  audio.play();
 
   if(navigator.vibrate){
     navigator.vibrate([500,500,500]);
   }
 }
 
+// 🛑 DETENER Y REINICIAR
 function detenerAlarma(){
+  let audio=document.getElementById("alarma");
+  audio.pause();
+  audio.currentTime=0;
+
   document.getElementById("panelAlarma").style.display="none";
-  document.getElementById("alarma").pause();
-  document.getElementById("alarma").currentTime=0;
+
+  destino=null;
+  alarmaActiva=false;
+
+  if(marcadorDestino) map.removeLayer(marcadorDestino);
+  if(circulo) map.removeLayer(circulo);
+
+  document.getElementById("direccion").value="";
+
+  alert("Sistema reiniciado ✔");
 }
 
 // GUARDAR
