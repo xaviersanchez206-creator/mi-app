@@ -52,18 +52,28 @@ button { padding:10px; }
   display:none;
   z-index:3000;
 }
+
+#btnUbicacion {
+  position:absolute;
+  bottom:20px;
+  left:70px;
+  z-index:1500;
+  padding:10px;
+}
 </style>
 </head>
 
 <body>
 
-<div class="barra">
+<div class="barra" id="barra">
   <input id="direccion" placeholder="Escribí dirección">
   <button onclick="buscarDireccion()">Buscar</button>
   <button onclick="guardarLugar()">💾</button>
 </div>
 
 <div id="map"></div>
+
+<button id="btnUbicacion" onclick="irMiUbicacion()">Mi ubicación</button>
 
 <div id="panelDistancia">
   <h3>Elegí distancia (metros)</h3>
@@ -79,7 +89,9 @@ button { padding:10px; }
 <audio id="alarma" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
 
 <script>
-let map = L.map('map').setView([-34.6,-58.38],15);
+let map = L.map('map',{zoomControl:false}).setView([-34.6,-58.38],15);
+
+L.control.zoom({position:'bottomleft'}).addTo(map);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -90,11 +102,15 @@ let destino=null;
 let radio=0.3;
 let alarmaActiva=false;
 let seleccion=300;
+let ubicacionActual=null;
+let distanciaActual=0;
 
 // GPS
 navigator.geolocation.watchPosition(pos=>{
   let lat=pos.coords.latitude;
   let lon=pos.coords.longitude;
+
+  ubicacionActual=[lat,lon];
 
   if(marcadorUsuario){
     marcadorUsuario.setLatLng([lat,lon]);
@@ -107,13 +123,22 @@ navigator.geolocation.watchPosition(pos=>{
 
   let d=calcularDistancia(lat,lon,destino.lat,destino.lon);
 
+  // ✅ distancia SIEMPRE actualizada
+  distanciaActual = d * 1000;
+
   if(d<radio && !alarmaActiva){
     activarAlarma();
   }
-
 });
 
-// 🔎 BUSCADOR MEJORADO
+// 📍 MI UBICACIÓN
+function irMiUbicacion(){
+  if(ubicacionActual){
+    map.setView(ubicacionActual,16);
+  }
+}
+
+// 🔎 BUSCADOR
 function buscarDireccion(){
   let dir=document.getElementById("direccion").value;
 
@@ -128,7 +153,7 @@ function buscarDireccion(){
   .then(r=>r.json())
   .then(data=>{
     if(data.length===0){
-      alert("No encontrada. Probá marcar en el mapa.");
+      alert("No encontrada. Probá en el mapa.");
       return;
     }
 
@@ -142,21 +167,18 @@ function buscarDireccion(){
     map.setView([lat,lon],17);
 
     mostrarOpciones();
-  })
-  .catch(()=>{
-    alert("Error de conexión");
   });
 }
 
-// 📍 SELECCIÓN MANUAL (ARREGLADA DEFINITIVA)
+// 📍 CLICK DERECHO
 map.on("contextmenu", function(e){
-  let lat = e.latlng.lat;
-  let lon = e.latlng.lng;
+  let lat=e.latlng.lat;
+  let lon=e.latlng.lng;
 
-  ponerDestino(lat, lon);
+  ponerDestino(lat,lon);
 
   document.getElementById("direccion").value =
-    lat.toFixed(5) + "," + lon.toFixed(5);
+    lat.toFixed(5)+","+lon.toFixed(5);
 
   mostrarOpciones();
 });
@@ -170,16 +192,49 @@ function ponerDestino(lat,lon){
   if(circulo) map.removeLayer(circulo);
 
   marcadorDestino=L.marker([lat,lon]).addTo(map);
+
+  if(ubicacionActual){
+    distanciaActual = calcularDistancia(
+      ubicacionActual[0],
+      ubicacionActual[1],
+      lat,
+      lon
+    ) * 1000;
+  }
 }
 
 // DISTANCIAS
 function mostrarOpciones(){
+  if(!ubicacionActual){
+    alert("Esperando ubicación GPS...");
+    return;
+  }
+
+  if(distanciaActual <= 0){
+    alert("No se pudo calcular la distancia aún");
+    return;
+  }
+
   let panel=document.getElementById("panelDistancia");
   let cont=document.getElementById("opciones");
 
   cont.innerHTML="";
 
-  for(let i=100;i<=2000;i+=100){
+  let maxPermitido = Math.floor((distanciaActual - 100)/100)*100;
+
+  if(maxPermitido < 100){
+    alert("Estás demasiado cerca del destino");
+    return;
+  }
+
+  let minPermitido = 100;
+
+  if(distanciaActual > 500) minPermitido = 200;
+  if(distanciaActual > 1000) minPermitido = 300;
+
+  for(let i=minPermitido;i<=2000;i+=100){
+    if(i>maxPermitido) continue;
+
     let btn=document.createElement("button");
     btn.innerText=i+"m";
 
@@ -208,11 +263,29 @@ function confirmarDistancia(){
   }
 
   document.getElementById("panelDistancia").style.display="none";
+  document.getElementById("barra").style.display="none";
+
+  crearBotonCancelar();
 
   alert("Despertador activado ✔");
 }
 
-// 🔔 ALARMA
+// CANCELAR
+function crearBotonCancelar(){
+  let btn=document.createElement("button");
+  btn.id="cancelar";
+  btn.innerText="CANCELAR";
+  btn.style.position="absolute";
+  btn.style.top="10px";
+  btn.style.right="10px";
+  btn.style.zIndex="2000";
+
+  btn.onclick=resetearApp;
+
+  document.body.appendChild(btn);
+}
+
+// ALARMA
 function activarAlarma(){
   alarmaActiva=true;
 
@@ -221,13 +294,19 @@ function activarAlarma(){
   let audio=document.getElementById("alarma");
   audio.play();
 
+  // 📳 vibración
   if(navigator.vibrate){
-    navigator.vibrate([500,500,500]);
+    navigator.vibrate([500,200,500,200,500]);
   }
 }
 
-// 🛑 DETENER Y REINICIAR
+// DETENER
 function detenerAlarma(){
+  resetearApp();
+}
+
+// RESET
+function resetearApp(){
   let audio=document.getElementById("alarma");
   audio.pause();
   audio.currentTime=0;
@@ -241,8 +320,10 @@ function detenerAlarma(){
   if(circulo) map.removeLayer(circulo);
 
   document.getElementById("direccion").value="";
+  document.getElementById("barra").style.display="flex";
 
-  alert("Sistema reiniciado ✔");
+  let btn=document.getElementById("cancelar");
+  if(btn) btn.remove();
 }
 
 // GUARDAR
