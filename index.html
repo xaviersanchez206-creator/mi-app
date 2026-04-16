@@ -3,130 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Alarma Ultra Definido</title>
+    <title>GPS Alarma Pro - Soft Zone</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        :root { --primary: #2563eb; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.9); --dark: #0f172a; }
-        body { margin:0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: var(--dark); }
+        :root { --primary: #2563eb; --accent: #0ea5e9; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.95); }
+        body { margin:0; font-family: system-ui, sans-serif; overflow: hidden; background: #0f172a; }
         #map { height:100vh; width: 100vw; z-index: 1; }
 
-        /* Estética Premium */
         .leaflet-routing-container { display: none !important; }
+
         .barra {
             position:absolute; top:15px; left:10px; right:10px; z-index:1000;
             display:flex; gap:8px; background: var(--glass);
-            padding: 10px; border-radius: 20px; backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            padding: 10px; border-radius: 15px; backdrop-filter: blur(10px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
         }
-        input { flex:1; padding:12px; border: none; border-radius: 12px; font-size: 16px; outline: none; background: #f1f5f9; }
+        input { flex:1; padding:12px; border: none; border-radius: 10px; font-size: 16px; outline: none; background: #f1f5f9; }
         
-        .btn-icon { background: var(--primary); color: white; border: none; width: 48px; height: 48px; border-radius: 15px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-icon { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-        /* HUD Pro (Velocidad y Tiempo) */
-        #hudPro {
-            position:absolute; top:85px; left:10px; right:10px;
-            display: flex; justify-content: space-between; gap: 10px; z-index: 1000;
-            display: none;
+        #btnCentrar {
+            position:absolute; bottom:130px; left:15px; z-index:1500;
+            background: white; border-radius: 50%; width: 55px; height: 55px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-size: 24px;
+            display: flex; align-items: center; justify-content: center; border: none;
         }
-        .stat-card { background: var(--dark); color: white; padding: 10px 20px; border-radius: 15px; flex: 1; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
-        .stat-val { font-size: 18px; font-weight: bold; display: block; }
-        .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
 
-        /* Panel de Alarma */
+        /* HUD Mejorado */
+        #distanciaHUD {
+            position:absolute; bottom:130px; right:15px;
+            background: rgba(15, 23, 42, 0.95); color:white;
+            padding:18px; z-index:1500; border-radius:20px;
+            display:none; font-family: 'Courier New', monospace; 
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
         .panel {
             position:absolute; bottom:0; left:0; right:0;
             background: white; padding:25px; z-index:2000;
-            border-radius: 30px 30px 0 0; display:none; text-align: center;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
+            border-radius: 25px 25px 0 0; display:none; text-align: center;
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.3);
         }
 
-        #btnWpp { position: absolute; bottom: 120px; left: 10px; z-index: 1500; background: #25d366; color: white; border-radius: 50%; width: 55px; height: 55px; border: none; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #btnDetener {
+            position:absolute; bottom:40px; left:50%; transform: translateX(-50%);
+            z-index:2500; padding:18px 45px; background: var(--danger);
+            color:white; border-radius: 35px; display:none; border: 2px solid white; font-weight: bold;
+        }
 
-        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 20px 0; }
-        .grid button { padding: 15px 5px; border-radius: 12px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
-        .grid button:active { background: var(--primary); color: white; }
+        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 15px 0; }
+        .grid button { padding: 12px 5px; border-radius: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
+        .grid button:disabled { opacity: 0.2; }
     </style>
 </head>
 <body>
 
 <div class="barra">
-    <input id="direccion" placeholder="¿A dónde vamos hoy?">
+    <input id="direccion" placeholder="¿A dónde vamos?">
     <button class="btn-icon" onclick="buscarDireccion()">🔍</button>
-</div>
-
-<div id="hudPro">
-    <div class="stat-card">
-        <span class="stat-val" id="valVelocidad">0</span>
-        <span class="stat-label">km/h</span>
-    </div>
-    <div class="stat-card">
-        <span class="stat-val" id="valTiempo">--</span>
-        <span class="stat-label">Llegada (min)</span>
-    </div>
-    <div class="stat-card">
-        <span class="stat-val" id="valDist">--</span>
-        <span class="stat-label">Restante</span>
-    </div>
 </div>
 
 <div id="map"></div>
 
-<button id="btnWpp" onclick="compartirUbicacion()">📱</button>
+<button id="btnCentrar" onclick="centrarMapa()">🎯</button>
+<button id="btnDetener" onclick="location.reload()">CANCELAR VIAJE</button>
+
+<div id="distanciaHUD"></div>
 
 <div id="panelDistancia" class="panel">
-    <h3 style="margin:0">Configurar Alarma</h3>
-    <p style="font-size: 14px; color: #64748b;">Elegí el radio de aviso para despertarte:</p>
+    <h3 style="margin-top:0">Distancia de Aviso</h3>
     <div class="grid" id="opciones"></div>
-    <button class="btn-icon" style="width:100%; height: 60px; border-radius: 20px;" onclick="confirmarDistancia()">INICIAR RUTA</button>
+    <button class="btn-icon" style="width:100%; height: 55px;" onclick="confirmarDistancia()">ESTABLECER RUTA</button>
 </div>
 
 <div id="panelAlarma" class="panel" style="background: var(--danger); color: white;">
-    <h1 style="margin:0; font-size: 35px;">⚠️ ¡BAJATE!</h1>
-    <p>Estás en el radio de destino.</p>
-    <button style="background:white; color:var(--danger); padding:20px 50px; border-radius:20px; border:none; font-weight:bold; margin-top:15px; font-size: 18px;" onclick="location.reload()">DETENER ALARMA</button>
+    <h1 style="margin:0">🚨 ¡LLEGASTE! 🚨</h1>
+    <button style="background:white; color:var(--danger); padding:15px 40px; border-radius:15px; border:none; font-weight:bold; margin-top:10px" onclick="location.reload()">DETENER</button>
 </div>
 
 <audio id="sonido" loop src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
 
 <script>
-// Detectar Modo Noche
-const esNoche = new Date().getHours() > 19 || new Date().getHours() < 7;
-const mapTile = esNoche ? 
-    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 
-    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
 let map = L.map('map', {zoomControl: false}).setView([-34.6, -58.4], 13);
-L.tileLayer(mapTile).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let marcadorUsuario, marcadorDestino, destino, radioMetros = 0, ubicacionActual, controlRuteo;
+let marcadorUsuario = null, marcadorDestino = null, circuloAlarma = null;
+let destino = null, radioMetros = 0, ubicacionActual = null, controlRuteo = null;
 
-// GPS Y VELOCÍMETRO
 navigator.geolocation.watchPosition(pos => {
-    const { latitude, longitude, speed } = pos.coords;
-    ubicacionActual = L.latLng(latitude, longitude);
-
-    // Actualizar Velocímetro (m/s a km/h)
-    const kmh = speed ? Math.round(speed * 3.6) : 0;
-    document.getElementById("valVelocidad").innerText = kmh;
-
+    ubicacionActual = L.latLng(pos.coords.latitude, pos.coords.longitude);
     if (!marcadorUsuario) {
         marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 9, color: '#2563eb', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
         map.setView(ubicacionActual, 16);
     } else {
         marcadorUsuario.setLatLng(ubicacionActual);
     }
-
     if (controlRuteo && destino) {
         controlRuteo.setWaypoints([ubicacionActual, L.latLng(destino.lat, destino.lon)]);
     }
 }, null, { enableHighAccuracy: true });
 
-// BUSCADOR Y CLIC EN MAPA
+function centrarMapa() {
+    if (ubicacionActual) map.flyTo(ubicacionActual, 16);
+}
+
 async function buscarDireccion() {
     let q = document.getElementById("direccion").value;
     const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ar`);
@@ -137,7 +124,7 @@ async function buscarDireccion() {
 map.on('contextmenu', e => fijarDestino(e.latlng.lat, e.latlng.lng));
 
 function fijarDestino(lat, lon) {
-    if (!ubicacionActual) return;
+    if (!ubicacionActual) return alert("Buscando GPS...");
     destino = { lat, lon };
     if (marcadorDestino) map.removeLayer(marcadorDestino);
     marcadorDestino = L.marker([lat, lon]).addTo(map);
@@ -145,7 +132,9 @@ function fijarDestino(lat, lon) {
     const distDirecta = ubicacionActual.distanceTo(L.latLng(lat, lon));
     const cont = document.getElementById("opciones");
     cont.innerHTML = "";
-    [100, 300, 500, 1000].forEach(m => {
+    radioMetros = 0;
+
+    [100, 200, 300, 500, 800, 1000, 1500, 2000].forEach(m => {
         let btn = document.createElement("button");
         btn.innerText = m + "m";
         if (m >= distDirecta) btn.disabled = true;
@@ -160,43 +149,47 @@ function fijarDestino(lat, lon) {
 }
 
 function confirmarDistancia() {
-    if (radioMetros === 0) return alert("Elegí el radio");
-    
-    controlRuteo = L.Routing.control({
-        waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
-        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1/driving' }),
-        addWaypoints: false,
-        lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.8 }] }
+    if (radioMetros === 0) return alert("Elegí metros");
+
+    // CAMBIO DE COLOR: Ahora es un cian suave (Soft Zone)
+    if (circuloAlarma) map.removeLayer(circuloAlarma);
+    circuloAlarma = L.circle([destino.lat, destino.lon], {
+        radius: radioMetros, 
+        color: '#0ea5e9', 
+        weight: 3, 
+        dashArray: '5, 10', // Línea punteada para que sea más suave
+        fillColor: '#0ea5e9',
+        fillOpacity: 0.15
     }).addTo(map);
 
-    controlRuteo.on('routesfound', function(e) {
-        const route = e.routes[0];
-        const dist = route.summary.totalDistance;
-        const tiempo = Math.round(route.summary.totalTime / 60); // Segundos a minutos
+    controlRuteo = L.Routing.control({
+        waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
+        addWaypoints: false,
+        lineOptions: { styles: [{ color: '#2563eb', weight: 6 }] }
+    }).addTo(map);
 
-        document.getElementById("hudPro").style.display = "flex";
-        document.getElementById("valDist").innerText = dist > 1000 ? (dist/1000).toFixed(1) + "km" : Math.round(dist) + "m";
-        document.getElementById("valTiempo").innerText = tiempo;
-
-        if (dist <= radioMetros) activarAlarma();
+    controlRuteo.on('routesfound', e => {
+        const distRuta = e.routes[0].summary.totalDistance;
+        document.getElementById("distanciaHUD").style.display = "block";
+        // Aquí se marca claramente la cantidad programada (Radio) vs Real
+        document.getElementById("distanciaHUD").innerHTML = `
+            <span style="color:#0ea5e9">OBJETIVO: ${radioMetros}m</span><br>
+            <hr style="border:0; border-top:1px solid #334155; margin:8px 0">
+            <span style="font-size:18px">FALTAN: ${Math.round(distRuta)}m</span>
+        `;
+        if (distRuta <= radioMetros) activarAlarma();
     });
 
     document.getElementById("panelDistancia").style.display = "none";
+    document.getElementById("btnDetener").style.display = "block";
     document.querySelector(".barra").style.display = "none";
 }
 
 function activarAlarma() {
     if (document.getElementById("panelAlarma").style.display === "block") return;
     document.getElementById("panelAlarma").style.display = "block";
-    const audio = document.getElementById("sonido");
-    audio.play();
-    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500]);
-}
-
-function compartirUbicacion() {
-    if (!ubicacionActual) return;
-    const url = `https://www.google.com/maps?q=${ubicacionActual.lat},${ubicacionActual.lng}`;
-    window.open(`https://wa.me/?text=Estoy viajando, esta es mi ubicación actual: ${url}`);
+    document.getElementById("sonido").play();
+    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000]);
 }
 </script>
 </body>
