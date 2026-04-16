@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Alarma Pro - Soft Zone</title>
+    <title>GPS Alarma REPARADO</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
@@ -12,107 +12,103 @@
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        :root { --primary: #2563eb; --accent: #0ea5e9; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.95); }
-        body { margin:0; font-family: system-ui, sans-serif; overflow: hidden; background: #0f172a; }
-        #map { height:100vh; width: 100vw; z-index: 1; }
-
+        :root { --primary: #2563eb; --danger: #ef4444; }
+        body { margin:0; font-family: sans-serif; overflow: hidden; background: #0f172a; }
+        #map { height:100vh; width: 100vw; }
         .leaflet-routing-container { display: none !important; }
 
         .barra {
-            position:absolute; top:15px; left:10px; right:10px; z-index:1000;
-            display:flex; gap:8px; background: var(--glass);
-            padding: 10px; border-radius: 15px; backdrop-filter: blur(10px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            position:absolute; top:10px; left:10px; right:10px; z-index:1000;
+            display:flex; gap:5px; background: white; padding: 8px; border-radius: 12px;
         }
-        input { flex:1; padding:12px; border: none; border-radius: 10px; font-size: 16px; outline: none; background: #f1f5f9; }
+        input { flex:1; padding:10px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
         
-        .btn-icon { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-
-        #btnCentrar {
-            position:absolute; bottom:130px; left:15px; z-index:1500;
-            background: white; border-radius: 50%; width: 55px; height: 55px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-size: 24px;
-            display: flex; align-items: center; justify-content: center; border: none;
-        }
-
-        /* HUD Mejorado */
         #distanciaHUD {
-            position:absolute; bottom:130px; right:15px;
-            background: rgba(15, 23, 42, 0.95); color:white;
-            padding:18px; z-index:1500; border-radius:20px;
-            display:none; font-family: 'Courier New', monospace; 
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            position:absolute; bottom:130px; right:10px; background: rgba(0,0,0,0.8);
+            color:white; padding:15px; z-index:1500; border-radius:12px; display:none;
         }
 
         .panel {
-            position:absolute; bottom:0; left:0; right:0;
-            background: white; padding:25px; z-index:2000;
-            border-radius: 25px 25px 0 0; display:none; text-align: center;
-            box-shadow: 0 -5px 30px rgba(0,0,0,0.3);
+            position:absolute; bottom:0; left:0; right:0; background: white;
+            padding:20px; z-index:2000; border-radius: 20px 20px 0 0; display:none; text-align: center;
         }
 
-        #btnDetener {
-            position:absolute; bottom:40px; left:50%; transform: translateX(-50%);
-            z-index:2500; padding:18px 45px; background: var(--danger);
-            color:white; border-radius: 35px; display:none; border: 2px solid white; font-weight: bold;
+        #btnCentrar {
+            position:absolute; bottom:130px; left:10px; z-index:1500;
+            background: white; border-radius: 50%; width: 50px; height: 50px; border: none; font-size: 20px;
         }
 
-        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 15px 0; }
-        .grid button { padding: 12px 5px; border-radius: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
-        .grid button:disabled { opacity: 0.2; }
+        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin: 15px 0; }
+        .grid button { padding: 10px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="barra">
-    <input id="direccion" placeholder="¿A dónde vamos?">
-    <button class="btn-icon" onclick="buscarDireccion()">🔍</button>
+    <input id="direccion" placeholder="Buscar destino...">
+    <button style="padding:10px" onclick="buscarDireccion()">🔍</button>
 </div>
 
 <div id="map"></div>
-
 <button id="btnCentrar" onclick="centrarMapa()">🎯</button>
-<button id="btnDetener" onclick="location.reload()">CANCELAR VIAJE</button>
-
 <div id="distanciaHUD"></div>
 
 <div id="panelDistancia" class="panel">
-    <h3 style="margin-top:0">Distancia de Aviso</h3>
+    <h3>¿A qué distancia avisar?</h3>
     <div class="grid" id="opciones"></div>
-    <button class="btn-icon" style="width:100%; height: 55px;" onclick="confirmarDistancia()">ESTABLECER RUTA</button>
+    <button id="confirmarBtn" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:bold;">
+        ACTIVAR ALARMA
+    </button>
 </div>
 
 <div id="panelAlarma" class="panel" style="background: var(--danger); color: white;">
-    <h1 style="margin:0">🚨 ¡LLEGASTE! 🚨</h1>
-    <button style="background:white; color:var(--danger); padding:15px 40px; border-radius:15px; border:none; font-weight:bold; margin-top:10px" onclick="location.reload()">DETENER</button>
+    <h1>🚨 ¡LLEGASTE!</h1>
+    <button onclick="location.reload()" style="padding:15px 30px; border-radius:10px; border:none; font-weight:bold;">DETENER</button>
 </div>
 
-<audio id="sonido" loop src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
+<audio id="sonido" loop preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3" type="audio/mpeg">
+</audio>
 
 <script>
 let map = L.map('map', {zoomControl: false}).setView([-34.6, -58.4], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let marcadorUsuario = null, marcadorDestino = null, circuloAlarma = null;
-let destino = null, radioMetros = 0, ubicacionActual = null, controlRuteo = null;
+let marcadorUsuario, marcadorDestino, circuloAlarma, controlRuteo;
+let destino, radioMetros = 0, ubicacionActual;
 
+// ACTIVACIÓN DE AUDIO Y GPS (MUY IMPORTANTE)
+document.getElementById('confirmarBtn').addEventListener('click', function() {
+    const audio = document.getElementById('sonido');
+    audio.play().then(() => {
+        audio.pause(); // "Despertamos" el audio para que pueda sonar después
+        audio.currentTime = 0;
+        confirmarDistancia();
+    }).catch(e => {
+        console.log("Error de audio:", e);
+        confirmarDistancia(); // Intentar igual
+    });
+});
+
+// WATCH POSITION - ACTUALIZACIÓN CONSTANTE
 navigator.geolocation.watchPosition(pos => {
     ubicacionActual = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    
     if (!marcadorUsuario) {
-        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 9, color: '#2563eb', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
+        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 8, color: 'blue', fillColor: 'white', fillOpacity: 1}).addTo(map);
         map.setView(ubicacionActual, 16);
     } else {
         marcadorUsuario.setLatLng(ubicacionActual);
     }
+
     if (controlRuteo && destino) {
         controlRuteo.setWaypoints([ubicacionActual, L.latLng(destino.lat, destino.lon)]);
     }
-}, null, { enableHighAccuracy: true });
-
-function centrarMapa() {
-    if (ubicacionActual) map.flyTo(ubicacionActual, 16);
-}
+}, err => alert("Error GPS: " + err.message), { 
+    enableHighAccuracy: true, 
+    maximumAge: 0, 
+    timeout: 5000 
+});
 
 async function buscarDireccion() {
     let q = document.getElementById("direccion").value;
@@ -124,24 +120,19 @@ async function buscarDireccion() {
 map.on('contextmenu', e => fijarDestino(e.latlng.lat, e.latlng.lng));
 
 function fijarDestino(lat, lon) {
-    if (!ubicacionActual) return alert("Buscando GPS...");
     destino = { lat, lon };
     if (marcadorDestino) map.removeLayer(marcadorDestino);
     marcadorDestino = L.marker([lat, lon]).addTo(map);
     
-    const distDirecta = ubicacionActual.distanceTo(L.latLng(lat, lon));
     const cont = document.getElementById("opciones");
     cont.innerHTML = "";
-    radioMetros = 0;
-
-    [100, 200, 300, 500, 800, 1000, 1500, 2000].forEach(m => {
+    [100, 300, 500, 1000].forEach(m => {
         let btn = document.createElement("button");
         btn.innerText = m + "m";
-        if (m >= distDirecta) btn.disabled = true;
         btn.onclick = () => {
             radioMetros = m;
-            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#f8f9fa"; b.style.color="black"});
-            btn.style.background = "#2563eb"; btn.style.color = "white";
+            document.querySelectorAll(".grid button").forEach(b => b.style.background = "#f8f9fa");
+            btn.style.background = "blue"; btn.style.color = "white";
         };
         cont.appendChild(btn);
     });
@@ -149,48 +140,38 @@ function fijarDestino(lat, lon) {
 }
 
 function confirmarDistancia() {
-    if (radioMetros === 0) return alert("Elegí metros");
+    if (radioMetros === 0) return alert("Elegí la distancia");
 
-    // CAMBIO DE COLOR: Ahora es un cian suave (Soft Zone)
     if (circuloAlarma) map.removeLayer(circuloAlarma);
     circuloAlarma = L.circle([destino.lat, destino.lon], {
-        radius: radioMetros, 
-        color: '#0ea5e9', 
-        weight: 3, 
-        dashArray: '5, 10', // Línea punteada para que sea más suave
-        fillColor: '#0ea5e9',
-        fillOpacity: 0.15
+        radius: radioMetros, color: 'cyan', weight: 2, fillOpacity: 0.2
     }).addTo(map);
 
     controlRuteo = L.Routing.control({
         waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
         addWaypoints: false,
-        lineOptions: { styles: [{ color: '#2563eb', weight: 6 }] }
+        lineOptions: { styles: [{ color: 'blue', weight: 5 }] }
     }).addTo(map);
 
     controlRuteo.on('routesfound', e => {
         const distRuta = e.routes[0].summary.totalDistance;
-        document.getElementById("distanciaHUD").style.display = "block";
-        // Aquí se marca claramente la cantidad programada (Radio) vs Real
-        document.getElementById("distanciaHUD").innerHTML = `
-            <span style="color:#0ea5e9">OBJETIVO: ${radioMetros}m</span><br>
-            <hr style="border:0; border-top:1px solid #334155; margin:8px 0">
-            <span style="font-size:18px">FALTAN: ${Math.round(distRuta)}m</span>
-        `;
-        if (distRuta <= radioMetros) activarAlarma();
+        const hud = document.getElementById("distanciaHUD");
+        hud.style.display = "block";
+        hud.innerHTML = `Faltan: ${Math.round(distRuta)}m<br>Alarma en: ${radioMetros}m`;
+        
+        // LOGICA DE DISPARO
+        if (distRuta <= radioMetros) {
+            document.getElementById("panelAlarma").style.display = "block";
+            document.getElementById("sonido").play();
+            if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
+        }
     });
 
     document.getElementById("panelDistancia").style.display = "none";
-    document.getElementById("btnDetener").style.display = "block";
     document.querySelector(".barra").style.display = "none";
 }
 
-function activarAlarma() {
-    if (document.getElementById("panelAlarma").style.display === "block") return;
-    document.getElementById("panelAlarma").style.display = "block";
-    document.getElementById("sonido").play();
-    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000]);
-}
+function centrarMapa() { if (ubicacionActual) map.flyTo(ubicacionActual, 16); }
 </script>
 </body>
 </html>
