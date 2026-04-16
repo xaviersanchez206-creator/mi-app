@@ -2,143 +2,121 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Despertador GPS Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS Alarma Ultra Definido</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        :root { --primary: #3b82f6; --danger: #ef4444; --bg-dark: #0f172a; --glass: rgba(30, 41, 59, 0.95); }
-        body { margin:0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; background: var(--bg-dark); color: white; }
-        
-        /* Filtro oscuro para el mapa (Modo Noche) */
-        #map { height:100vh; width: 100vw; z-index: 1; filter: brightness(0.8) contrast(1.2) invert(1) hue-rotate(180deg); }
+        :root { --primary: #2563eb; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.9); --dark: #0f172a; }
+        body { margin:0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: var(--dark); }
+        #map { height:100vh; width: 100vw; z-index: 1; }
 
+        /* Estética Premium */
         .leaflet-routing-container { display: none !important; }
-
-        /* Barra Superior */
         .barra {
-            position:absolute; top:env(safe-area-inset-top, 15px); left:10px; right:10px; z-index:1000;
+            position:absolute; top:15px; left:10px; right:10px; z-index:1000;
             display:flex; gap:8px; background: var(--glass);
-            padding: 12px; border-radius: 18px; backdrop-filter: blur(15px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px; border-radius: 20px; backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
-        input { flex:1; padding:12px; border: none; border-radius: 12px; font-size: 16px; outline: none; background: #334155; color: white; }
-        input::placeholder { color: #94a3b8; }
+        input { flex:1; padding:12px; border: none; border-radius: 12px; font-size: 16px; outline: none; background: #f1f5f9; }
         
-        .btn-icon { background: var(--primary); color: white; border: none; width: 48px; height: 48px; border-radius: 12px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
-        .btn-icon:active { transform: scale(0.95); }
-        .btn-fav { background: #475569; }
+        .btn-icon { background: var(--primary); color: white; border: none; width: 48px; height: 48px; border-radius: 15px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-        /* HUD Distancia y Tiempo */
-        #distanciaHUD {
-            position:absolute; bottom:120px; right:15px;
-            background: var(--glass); color:white;
-            padding:15px 20px; z-index:1500; border-radius:18px;
-            display:none; font-family: monospace; font-size: 14px;
-            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
+        /* HUD Pro (Velocidad y Tiempo) */
+        #hudPro {
+            position:absolute; top:85px; left:10px; right:10px;
+            display: flex; justify-content: space-between; gap: 10px; z-index: 1000;
+            display: none;
         }
+        .stat-card { background: var(--dark); color: white; padding: 10px 20px; border-radius: 15px; flex: 1; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-val { font-size: 18px; font-weight: bold; display: block; }
+        .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
 
-        /* Paneles Deslizantes */
+        /* Panel de Alarma */
         .panel {
             position:absolute; bottom:0; left:0; right:0;
-            background: var(--glass); padding:30px 20px env(safe-area-inset-bottom, 20px) 20px; z-index:2000;
+            background: white; padding:25px; z-index:2000;
             border-radius: 30px 30px 0 0; display:none; text-align: center;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(20px);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.4);
         }
 
-        #panelAlarma { background: rgba(239, 68, 68, 0.95); }
+        #btnWpp { position: absolute; bottom: 120px; left: 10px; z-index: 1500; background: #25d366; color: white; border-radius: 50%; width: 55px; height: 55px; border: none; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
-        #btnDetener {
-            position:absolute; bottom:env(safe-area-inset-bottom, 40px); left:50%; transform: translateX(-50%);
-            z-index:2500; padding:16px 40px; background: var(--danger);
-            color:white; border-radius: 30px; display:none; border: none; font-weight: bold; font-size: 16px;
-            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
-        }
-
-        /* Grilla de Metros */
         .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 20px 0; }
-        .grid button { padding: 15px 5px; border-radius: 12px; border: 1px solid #475569; background: #1e293b; color: white; font-weight: bold; font-size: 15px; }
-        .grid button:disabled { opacity: 0.3; border-color: transparent; }
-
-        .selector-modo { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; }
-        .modo-btn { padding: 12px 25px; border-radius: 15px; border: 2px solid #475569; background: #1e293b; color: white; cursor: pointer; font-size: 22px; transition: 0.2s; }
-        .modo-btn.active { border-color: var(--primary); background: rgba(59, 130, 246, 0.2); }
-
-        /* Lista de Favoritos */
-        #listaFavs {
-            position: absolute; top: 80px; right: 10px; width: 250px;
-            background: var(--glass); border-radius: 15px; padding: 15px;
-            z-index: 1500; display: none; border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(15px); max-height: 40vh; overflow-y: auto;
-        }
-        .fav-item { background: #334155; border: none; color: white; padding: 12px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 8px; font-size: 15px; }
+        .grid button { padding: 15px 5px; border-radius: 12px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
+        .grid button:active { background: var(--primary); color: white; }
     </style>
 </head>
 <body>
 
 <div class="barra">
-    <input id="direccion" placeholder="Buscar destino...">
+    <input id="direccion" placeholder="¿A dónde vamos hoy?">
     <button class="btn-icon" onclick="buscarDireccion()">🔍</button>
-    <button class="btn-icon btn-fav" onclick="toggleFavs()">⭐</button>
 </div>
 
-<div id="listaFavs"></div>
+<div id="hudPro">
+    <div class="stat-card">
+        <span class="stat-val" id="valVelocidad">0</span>
+        <span class="stat-label">km/h</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-val" id="valTiempo">--</span>
+        <span class="stat-label">Llegada (min)</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-val" id="valDist">--</span>
+        <span class="stat-label">Restante</span>
+    </div>
+</div>
+
 <div id="map"></div>
 
-<button id="btnDetener" onclick="location.reload()">CANCELAR RUTA</button>
-<div id="distanciaHUD"></div>
+<button id="btnWpp" onclick="compartirUbicacion()">📱</button>
 
 <div id="panelDistancia" class="panel">
-    <h2 style="margin:0 0 5px 0">Configurar Alarma</h2>
-    <p style="color: #94a3b8; margin-top:0; font-size:14px;">Mantené apretado el mapa para marcar manual</p>
-    
-    <div class="selector-modo">
-        <button id="btnCar" class="modo-btn active" onclick="setModo('car')">🚗</button>
-        <button id="btnFoot" class="modo-btn" onclick="setModo('foot')">🚶</button>
-    </div>
-    
+    <h3 style="margin:0">Configurar Alarma</h3>
+    <p style="font-size: 14px; color: #64748b;">Elegí el radio de aviso para despertarte:</p>
     <div class="grid" id="opciones"></div>
-    
-    <div style="display: flex; gap: 10px;">
-        <button class="btn-icon btn-fav" style="width: 60px; height: 55px;" onclick="guardarFav()">💾</button>
-        <button class="btn-icon" style="flex: 1; height: 55px; font-weight: bold; font-size: 16px;" onclick="confirmarDistancia()">INICIAR VIAJE</button>
-    </div>
+    <button class="btn-icon" style="width:100%; height: 60px; border-radius: 20px;" onclick="confirmarDistancia()">INICIAR RUTA</button>
 </div>
 
-<div id="panelAlarma" class="panel">
-    <div style="font-size: 60px; margin-bottom: 10px;">🔔</div>
-    <h1 style="margin:0; font-size: 32px;">¡ARRIBA!</h1>
-    <p style="font-size: 18px; opacity: 0.9;">Llegaste al radio de destino.</p>
-    <button style="background:white; color:var(--danger); padding:18px 50px; border-radius:15px; border:none; font-weight:bold; font-size:18px; margin-top:20px; width: 100%;" onclick="location.reload()">APAGAR ALARMA</button>
+<div id="panelAlarma" class="panel" style="background: var(--danger); color: white;">
+    <h1 style="margin:0; font-size: 35px;">⚠️ ¡BAJATE!</h1>
+    <p>Estás en el radio de destino.</p>
+    <button style="background:white; color:var(--danger); padding:20px 50px; border-radius:20px; border:none; font-weight:bold; margin-top:15px; font-size: 18px;" onclick="location.reload()">DETENER ALARMA</button>
 </div>
 
 <audio id="sonido" loop src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
 
 <script>
+// Detectar Modo Noche
+const esNoche = new Date().getHours() > 19 || new Date().getHours() < 7;
+const mapTile = esNoche ? 
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
 let map = L.map('map', {zoomControl: false}).setView([-34.6, -58.4], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer(mapTile).addTo(map);
 
-let marcadorUsuario = null, marcadorDestino = null, destino = null;
-let radioMetros = 0, ubicacionActual = null, controlRuteo = null;
-let modoViaje = 'car', wakeLock = null;
+let marcadorUsuario, marcadorDestino, destino, radioMetros = 0, ubicacionActual, controlRuteo;
 
-// RASTREO GPS
+// GPS Y VELOCÍMETRO
 navigator.geolocation.watchPosition(pos => {
-    ubicacionActual = L.latLng(pos.coords.latitude, pos.coords.longitude);
+    const { latitude, longitude, speed } = pos.coords;
+    ubicacionActual = L.latLng(latitude, longitude);
+
+    // Actualizar Velocímetro (m/s a km/h)
+    const kmh = speed ? Math.round(speed * 3.6) : 0;
+    document.getElementById("valVelocidad").innerText = kmh;
 
     if (!marcadorUsuario) {
-        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 9, color: '#3b82f6', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
-        map.setView(ubicacionActual, 15);
+        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 9, color: '#2563eb', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
+        map.setView(ubicacionActual, 16);
     } else {
         marcadorUsuario.setLatLng(ubicacionActual);
     }
@@ -146,131 +124,80 @@ navigator.geolocation.watchPosition(pos => {
     if (controlRuteo && destino) {
         controlRuteo.setWaypoints([ubicacionActual, L.latLng(destino.lat, destino.lon)]);
     }
-}, err => console.warn("GPS error:", err), { enableHighAccuracy: true });
+}, null, { enableHighAccuracy: true });
 
-// BUSCADOR
+// BUSCADOR Y CLIC EN MAPA
 async function buscarDireccion() {
     let q = document.getElementById("direccion").value;
-    if(!q) return;
     const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ar`);
     const data = await resp.json();
-    if (data.length > 0) fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name.split(',')[0]);
+    if (data.length > 0) fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon));
 }
 
-// MARCADOR MANUAL (CLIC LARGO)
-map.on('contextmenu', e => fijarDestino(e.latlng.lat, e.latlng.lng, "Punto en el mapa"));
+map.on('contextmenu', e => fijarDestino(e.latlng.lat, e.latlng.lng));
 
-function fijarDestino(lat, lon, nombre = "") {
-    if (!ubicacionActual) return alert("Buscando satélites GPS...");
-    
-    destino = { lat, lon, nombre };
+function fijarDestino(lat, lon) {
+    if (!ubicacionActual) return;
+    destino = { lat, lon };
     if (marcadorDestino) map.removeLayer(marcadorDestino);
-    
     marcadorDestino = L.marker([lat, lon]).addTo(map);
-    map.flyTo([lat, lon], 15);
     
-    const dist = ubicacionActual.distanceTo(L.latLng(lat, lon));
+    const distDirecta = ubicacionActual.distanceTo(L.latLng(lat, lon));
     const cont = document.getElementById("opciones");
     cont.innerHTML = "";
-    radioMetros = 0;
-
-    [100, 200, 300, 500, 800, 1000, 1500, 2000].forEach(m => {
+    [100, 300, 500, 1000].forEach(m => {
         let btn = document.createElement("button");
         btn.innerText = m + "m";
-        if (m >= dist) btn.disabled = true;
+        if (m >= distDirecta) btn.disabled = true;
         btn.onclick = () => {
             radioMetros = m;
-            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#1e293b"; b.style.color="white"; b.style.borderColor="#475569"});
-            btn.style.background = "#3b82f6"; btn.style.borderColor = "#3b82f6";
+            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#f8f9fa"; b.style.color="black"});
+            btn.style.background = "#2563eb"; btn.style.color = "white";
         };
         cont.appendChild(btn);
     });
-
-    document.getElementById("listaFavs").style.display = "none";
     document.getElementById("panelDistancia").style.display = "block";
 }
 
-function setModo(m) {
-    modoViaje = m;
-    document.getElementById("btnCar").classList.toggle("active", m === 'car');
-    document.getElementById("btnFoot").classList.toggle("active", m === 'foot');
-}
-
-// INICIAR VIAJE
-async function confirmarDistancia() {
-    if (radioMetros === 0) return alert("Elegí una distancia de aviso");
-
-    const url = modoViaje === 'car' ? 'https://router.project-osrm.org/route/v1/driving' : 'https://router.project-osrm.org/route/v1/foot';
-
+function confirmarDistancia() {
+    if (radioMetros === 0) return alert("Elegí el radio");
+    
     controlRuteo = L.Routing.control({
         waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
-        router: L.Routing.osrmv1({ serviceUrl: url }),
+        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1/driving' }),
         addWaypoints: false,
-        lineOptions: { styles: [{ color: '#3b82f6', weight: 6, opacity: 0.9 }] }
+        lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.8 }] }
     }).addTo(map);
 
     controlRuteo.on('routesfound', function(e) {
-        const ruta = e.routes[0];
-        const dist = Math.round(ruta.summary.totalDistance);
-        const mins = Math.round(ruta.summary.totalTime / 60); // Calculo ETA
-        
-        document.getElementById("distanciaHUD").style.display = "block";
-        document.getElementById("distanciaHUD").innerHTML = `
-            <span style="color:#60a5fa">EN CAMINO</span><br>
-            Faltan: <b>${dist}m</b><br>
-            Tiempo est: <b>${mins} min</b><br>
-            Alarma a: ${radioMetros}m
-        `;
-        
+        const route = e.routes[0];
+        const dist = route.summary.totalDistance;
+        const tiempo = Math.round(route.summary.totalTime / 60); // Segundos a minutos
+
+        document.getElementById("hudPro").style.display = "flex";
+        document.getElementById("valDist").innerText = dist > 1000 ? (dist/1000).toFixed(1) + "km" : Math.round(dist) + "m";
+        document.getElementById("valTiempo").innerText = tiempo;
+
         if (dist <= radioMetros) activarAlarma();
     });
 
     document.getElementById("panelDistancia").style.display = "none";
-    document.getElementById("btnDetener").style.display = "block";
     document.querySelector(".barra").style.display = "none";
-    
-    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 
 function activarAlarma() {
     if (document.getElementById("panelAlarma").style.display === "block") return;
     document.getElementById("panelAlarma").style.display = "block";
     const audio = document.getElementById("sonido");
-    audio.volume = 1.0; audio.play();
-    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500, 1000, 500]);
+    audio.play();
+    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500]);
 }
 
-// SISTEMA DE FAVORITOS
-function guardarFav() {
-    const nom = prompt("Guardar este destino como:", destino.nombre || "");
-    if (!nom) return;
-    const favs = JSON.parse(localStorage.getItem("gps_pro_favs") || "[]");
-    favs.push({ n: nom, lat: destino.lat, lon: destino.lon });
-    localStorage.setItem("gps_pro_favs", JSON.stringify(favs));
-    alert("¡Guardado!");
-    renderFavs();
+function compartirUbicacion() {
+    if (!ubicacionActual) return;
+    const url = `https://www.google.com/maps?q=${ubicacionActual.lat},${ubicacionActual.lng}`;
+    window.open(`https://wa.me/?text=Estoy viajando, esta es mi ubicación actual: ${url}`);
 }
-
-function renderFavs() {
-    const list = document.getElementById("listaFavs");
-    const favs = JSON.parse(localStorage.getItem("gps_pro_favs") || "[]");
-    list.innerHTML = "<h4 style='margin:0 0 10px 0; color:#94a3b8'>Mis Lugares</h4>";
-    if(favs.length === 0) list.innerHTML += "<p style='font-size:13px'>Aún no hay guardados</p>";
-    favs.forEach(f => {
-        const b = document.createElement("button");
-        b.className = "fav-item";
-        b.innerText = "📍 " + f.n;
-        b.onclick = () => fijarDestino(f.lat, f.lon, f.n);
-        list.appendChild(b);
-    });
-}
-
-function toggleFavs() {
-    const l = document.getElementById("listaFavs");
-    l.style.display = l.style.display === "none" ? "block" : "none";
-    renderFavs();
-}
-renderFavs();
 </script>
 </body>
 </html>
