@@ -2,8 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Alarma Pro - FIXED</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Despertador GPS Pro</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
@@ -12,77 +15,111 @@
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        :root { --primary: #2563eb; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.95); }
-        body { margin:0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; background: #0f172a; }
-        #map { height:100vh; width: 100vw; z-index: 1; }
+        :root { --primary: #3b82f6; --danger: #ef4444; --bg-dark: #0f172a; --glass: rgba(30, 41, 59, 0.95); }
+        body { margin:0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; background: var(--bg-dark); color: white; }
+        
+        /* Filtro oscuro para el mapa (Modo Noche) */
+        #map { height:100vh; width: 100vw; z-index: 1; filter: brightness(0.8) contrast(1.2) invert(1) hue-rotate(180deg); }
 
         .leaflet-routing-container { display: none !important; }
 
+        /* Barra Superior */
         .barra {
-            position:absolute; top:15px; left:10px; right:10px; z-index:1000;
+            position:absolute; top:env(safe-area-inset-top, 15px); left:10px; right:10px; z-index:1000;
             display:flex; gap:8px; background: var(--glass);
-            padding: 10px; border-radius: 15px; backdrop-filter: blur(10px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            padding: 12px; border-radius: 18px; backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
         }
-        input { flex:1; padding:12px; border: none; border-radius: 10px; font-size: 16px; outline: none; background: #f1f5f9; }
+        input { flex:1; padding:12px; border: none; border-radius: 12px; font-size: 16px; outline: none; background: #334155; color: white; }
+        input::placeholder { color: #94a3b8; }
         
-        .btn-icon { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-icon { background: var(--primary); color: white; border: none; width: 48px; height: 48px; border-radius: 12px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .btn-icon:active { transform: scale(0.95); }
+        .btn-fav { background: #475569; }
 
+        /* HUD Distancia y Tiempo */
         #distanciaHUD {
-            position:absolute; bottom:110px; right:10px;
-            background: rgba(15, 23, 42, 0.9); color:white;
-            padding:15px; z-index:1500; border-radius:15px;
-            display:none; font-family: monospace; border: 1px solid rgba(255,255,255,0.1);
+            position:absolute; bottom:120px; right:15px;
+            background: var(--glass); color:white;
+            padding:15px 20px; z-index:1500; border-radius:18px;
+            display:none; font-family: monospace; font-size: 14px;
+            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
         }
 
+        /* Paneles Deslizantes */
         .panel {
             position:absolute; bottom:0; left:0; right:0;
-            background: white; padding:25px; z-index:2000;
-            border-radius: 25px 25px 0 0; display:none; text-align: center;
-            box-shadow: 0 -5px 30px rgba(0,0,0,0.3);
+            background: var(--glass); padding:30px 20px env(safe-area-inset-bottom, 20px) 20px; z-index:2000;
+            border-radius: 30px 30px 0 0; display:none; text-align: center;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
         }
+
+        #panelAlarma { background: rgba(239, 68, 68, 0.95); }
 
         #btnDetener {
-            position:absolute; bottom:30px; left:50%; transform: translateX(-50%);
-            z-index:2500; padding:15px 40px; background: var(--danger);
-            color:white; border-radius: 30px; display:none; border: 2px solid white; font-weight: bold;
+            position:absolute; bottom:env(safe-area-inset-bottom, 40px); left:50%; transform: translateX(-50%);
+            z-index:2500; padding:16px 40px; background: var(--danger);
+            color:white; border-radius: 30px; display:none; border: none; font-weight: bold; font-size: 16px;
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
         }
 
-        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 15px 0; }
-        .grid button { padding: 12px 5px; border-radius: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
-        .grid button:disabled { opacity: 0.2; }
+        /* Grilla de Metros */
+        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 20px 0; }
+        .grid button { padding: 15px 5px; border-radius: 12px; border: 1px solid #475569; background: #1e293b; color: white; font-weight: bold; font-size: 15px; }
+        .grid button:disabled { opacity: 0.3; border-color: transparent; }
 
-        .selector-modo { display: flex; justify-content: center; gap: 20px; margin-bottom: 15px; }
-        .modo-btn { padding: 10px 20px; border-radius: 10px; border: 2px solid #ddd; background: white; cursor: pointer; font-size: 20px; }
-        .modo-btn.active { border-color: var(--primary); background: #eff6ff; }
+        .selector-modo { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; }
+        .modo-btn { padding: 12px 25px; border-radius: 15px; border: 2px solid #475569; background: #1e293b; color: white; cursor: pointer; font-size: 22px; transition: 0.2s; }
+        .modo-btn.active { border-color: var(--primary); background: rgba(59, 130, 246, 0.2); }
+
+        /* Lista de Favoritos */
+        #listaFavs {
+            position: absolute; top: 80px; right: 10px; width: 250px;
+            background: var(--glass); border-radius: 15px; padding: 15px;
+            z-index: 1500; display: none; border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(15px); max-height: 40vh; overflow-y: auto;
+        }
+        .fav-item { background: #334155; border: none; color: white; padding: 12px; border-radius: 10px; width: 100%; text-align: left; margin-bottom: 8px; font-size: 15px; }
     </style>
 </head>
 <body>
 
 <div class="barra">
-    <input id="direccion" placeholder="¿A dónde vamos?">
+    <input id="direccion" placeholder="Buscar destino...">
     <button class="btn-icon" onclick="buscarDireccion()">🔍</button>
+    <button class="btn-icon btn-fav" onclick="toggleFavs()">⭐</button>
 </div>
 
+<div id="listaFavs"></div>
 <div id="map"></div>
 
-<button id="btnDetener" onclick="location.reload()">CANCELAR VIAJE</button>
+<button id="btnDetener" onclick="location.reload()">CANCELAR RUTA</button>
 <div id="distanciaHUD"></div>
 
 <div id="panelDistancia" class="panel">
-    <h3 style="margin-top:0">Configuración de Viaje</h3>
+    <h2 style="margin:0 0 5px 0">Configurar Alarma</h2>
+    <p style="color: #94a3b8; margin-top:0; font-size:14px;">Mantené apretado el mapa para marcar manual</p>
+    
     <div class="selector-modo">
         <button id="btnCar" class="modo-btn active" onclick="setModo('car')">🚗</button>
         <button id="btnFoot" class="modo-btn" onclick="setModo('foot')">🚶</button>
     </div>
+    
     <div class="grid" id="opciones"></div>
-    <button class="btn-icon" style="width:100%; height: 55px;" onclick="confirmarDistancia()">INICIAR GPS</button>
+    
+    <div style="display: flex; gap: 10px;">
+        <button class="btn-icon btn-fav" style="width: 60px; height: 55px;" onclick="guardarFav()">💾</button>
+        <button class="btn-icon" style="flex: 1; height: 55px; font-weight: bold; font-size: 16px;" onclick="confirmarDistancia()">INICIAR VIAJE</button>
+    </div>
 </div>
 
-<div id="panelAlarma" class="panel" style="background: var(--danger); color: white;">
-    <h1 style="margin:0">🚨 ¡DESPERTATE! 🚨</h1>
-    <p>Ya estás llegando.</p>
-    <button style="background:white; color:var(--danger); padding:15px 40px; border-radius:15px; border:none; font-weight:bold; margin-top:10px" onclick="location.reload()">DETENER</button>
+<div id="panelAlarma" class="panel">
+    <div style="font-size: 60px; margin-bottom: 10px;">🔔</div>
+    <h1 style="margin:0; font-size: 32px;">¡ARRIBA!</h1>
+    <p style="font-size: 18px; opacity: 0.9;">Llegaste al radio de destino.</p>
+    <button style="background:white; color:var(--danger); padding:18px 50px; border-radius:15px; border:none; font-weight:bold; font-size:18px; margin-top:20px; width: 100%;" onclick="location.reload()">APAGAR ALARMA</button>
 </div>
 
 <audio id="sonido" loop src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
@@ -95,15 +132,13 @@ let marcadorUsuario = null, marcadorDestino = null, destino = null;
 let radioMetros = 0, ubicacionActual = null, controlRuteo = null;
 let modoViaje = 'car', wakeLock = null;
 
-// 1. OBTENER MI UBICACIÓN
+// RASTREO GPS
 navigator.geolocation.watchPosition(pos => {
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-    ubicacionActual = L.latLng(lat, lon);
+    ubicacionActual = L.latLng(pos.coords.latitude, pos.coords.longitude);
 
     if (!marcadorUsuario) {
-        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 8, color: '#2563eb', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
-        map.setView(ubicacionActual, 16);
+        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 9, color: '#3b82f6', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
+        map.setView(ubicacionActual, 15);
     } else {
         marcadorUsuario.setLatLng(ubicacionActual);
     }
@@ -111,41 +146,30 @@ navigator.geolocation.watchPosition(pos => {
     if (controlRuteo && destino) {
         controlRuteo.setWaypoints([ubicacionActual, L.latLng(destino.lat, destino.lon)]);
     }
-}, err => console.warn("Error GPS:", err), { enableHighAccuracy: true });
+}, err => console.warn("GPS error:", err), { enableHighAccuracy: true });
 
-// 2. BUSCADOR
+// BUSCADOR
 async function buscarDireccion() {
     let q = document.getElementById("direccion").value;
     if(!q) return;
     const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ar`);
     const data = await resp.json();
-    if (data.length > 0) {
-        fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon));
-    } else {
-        alert("No se encontró el lugar");
-    }
+    if (data.length > 0) fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name.split(',')[0]);
 }
 
-// 3. MARCADO MANUAL (CLIC LARGO O DERECHO) - ESTA ERA LA PARTE QUE FALTABA
-map.on('contextmenu', e => {
-    fijarDestino(e.latlng.lat, e.latlng.lng);
-});
+// MARCADOR MANUAL (CLIC LARGO)
+map.on('contextmenu', e => fijarDestino(e.latlng.lat, e.latlng.lng, "Punto en el mapa"));
 
-// 4. FUNCIÓN PARA FIJAR EL PUNTO
-function fijarDestino(lat, lon) {
-    if (!ubicacionActual) return alert("Esperando señal GPS...");
+function fijarDestino(lat, lon, nombre = "") {
+    if (!ubicacionActual) return alert("Buscando satélites GPS...");
     
-    destino = { lat, lon };
-    
-    // Limpiar marcadores previos si existen
+    destino = { lat, lon, nombre };
     if (marcadorDestino) map.removeLayer(marcadorDestino);
     
     marcadorDestino = L.marker([lat, lon]).addTo(map);
     map.flyTo([lat, lon], 15);
     
-    const distDirecta = ubicacionActual.distanceTo(L.latLng(lat, lon));
-    
-    // Generar botones de metros
+    const dist = ubicacionActual.distanceTo(L.latLng(lat, lon));
     const cont = document.getElementById("opciones");
     cont.innerHTML = "";
     radioMetros = 0;
@@ -153,15 +177,16 @@ function fijarDestino(lat, lon) {
     [100, 200, 300, 500, 800, 1000, 1500, 2000].forEach(m => {
         let btn = document.createElement("button");
         btn.innerText = m + "m";
-        if (m >= distDirecta) btn.disabled = true;
+        if (m >= dist) btn.disabled = true;
         btn.onclick = () => {
             radioMetros = m;
-            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#f8f9fa"; b.style.color="black"});
-            btn.style.background = "#2563eb"; btn.style.color = "white";
+            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#1e293b"; b.style.color="white"; b.style.borderColor="#475569"});
+            btn.style.background = "#3b82f6"; btn.style.borderColor = "#3b82f6";
         };
         cont.appendChild(btn);
     });
 
+    document.getElementById("listaFavs").style.display = "none";
     document.getElementById("panelDistancia").style.display = "block";
 }
 
@@ -171,27 +196,33 @@ function setModo(m) {
     document.getElementById("btnFoot").classList.toggle("active", m === 'foot');
 }
 
-// 5. INICIAR NAVEGACIÓN
+// INICIAR VIAJE
 async function confirmarDistancia() {
     if (radioMetros === 0) return alert("Elegí una distancia de aviso");
 
-    const serviceUrl = modoViaje === 'car' ? 
-        'https://router.project-osrm.org/route/v1/driving' : 
-        'https://router.project-osrm.org/route/v1/foot';
+    const url = modoViaje === 'car' ? 'https://router.project-osrm.org/route/v1/driving' : 'https://router.project-osrm.org/route/v1/foot';
 
     controlRuteo = L.Routing.control({
         waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
-        router: L.Routing.osrmv1({ serviceUrl: serviceUrl }),
+        router: L.Routing.osrmv1({ serviceUrl: url }),
         addWaypoints: false,
-        lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.7 }] }
+        lineOptions: { styles: [{ color: '#3b82f6', weight: 6, opacity: 0.9 }] }
     }).addTo(map);
 
     controlRuteo.on('routesfound', function(e) {
-        const distRuta = e.routes[0].summary.totalDistance;
-        document.getElementById("distanciaHUD").style.display = "block";
-        document.getElementById("distanciaHUD").innerHTML = `<b>EN VIAJE</b><br>Faltan: ${Math.round(distRuta)}m<br>Alarma: ${radioMetros}m`;
+        const ruta = e.routes[0];
+        const dist = Math.round(ruta.summary.totalDistance);
+        const mins = Math.round(ruta.summary.totalTime / 60); // Calculo ETA
         
-        if (distRuta <= radioMetros) activarAlarma();
+        document.getElementById("distanciaHUD").style.display = "block";
+        document.getElementById("distanciaHUD").innerHTML = `
+            <span style="color:#60a5fa">EN CAMINO</span><br>
+            Faltan: <b>${dist}m</b><br>
+            Tiempo est: <b>${mins} min</b><br>
+            Alarma a: ${radioMetros}m
+        `;
+        
+        if (dist <= radioMetros) activarAlarma();
     });
 
     document.getElementById("panelDistancia").style.display = "none";
@@ -205,10 +236,41 @@ function activarAlarma() {
     if (document.getElementById("panelAlarma").style.display === "block") return;
     document.getElementById("panelAlarma").style.display = "block";
     const audio = document.getElementById("sonido");
-    audio.volume = 1.0;
-    audio.play();
-    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500]);
+    audio.volume = 1.0; audio.play();
+    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500, 1000, 500]);
 }
+
+// SISTEMA DE FAVORITOS
+function guardarFav() {
+    const nom = prompt("Guardar este destino como:", destino.nombre || "");
+    if (!nom) return;
+    const favs = JSON.parse(localStorage.getItem("gps_pro_favs") || "[]");
+    favs.push({ n: nom, lat: destino.lat, lon: destino.lon });
+    localStorage.setItem("gps_pro_favs", JSON.stringify(favs));
+    alert("¡Guardado!");
+    renderFavs();
+}
+
+function renderFavs() {
+    const list = document.getElementById("listaFavs");
+    const favs = JSON.parse(localStorage.getItem("gps_pro_favs") || "[]");
+    list.innerHTML = "<h4 style='margin:0 0 10px 0; color:#94a3b8'>Mis Lugares</h4>";
+    if(favs.length === 0) list.innerHTML += "<p style='font-size:13px'>Aún no hay guardados</p>";
+    favs.forEach(f => {
+        const b = document.createElement("button");
+        b.className = "fav-item";
+        b.innerText = "📍 " + f.n;
+        b.onclick = () => fijarDestino(f.lat, f.lon, f.n);
+        list.appendChild(b);
+    });
+}
+
+function toggleFavs() {
+    const l = document.getElementById("listaFavs");
+    l.style.display = l.style.display === "none" ? "block" : "none";
+    renderFavs();
+}
+renderFavs();
 </script>
 </body>
 </html>
