@@ -3,302 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alarma GPS Pro - Versión Final</title>
+    <title>GPS Alarma Pro - Despertador</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #f0f0f0; }
+        :root { --primary: #2563eb; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.95); }
+        body { margin:0; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; background: #0f172a; }
         #map { height:100vh; width: 100vw; }
 
-        /* Buscador */
+        .leaflet-routing-container { display: none !important; }
+
         .barra {
-            position:absolute; top:10px; left:10px; right:10px; z-index:1000;
-            display:flex; gap:8px; background: white;
-            padding: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            position:absolute; top:15px; left:10px; right:10px; z-index:1000;
+            display:flex; gap:8px; background: var(--glass);
+            padding: 10px; border-radius: 15px; backdrop-filter: blur(10px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
         }
-        input { flex:1; padding:12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
-        button { padding:12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-blue { background: #007bff; color: white; }
-        .btn-blue:active { background: #0056b3; }
+        input { flex:1; padding:12px; border: none; border-radius: 10px; font-size: 16px; outline: none; background: #f1f5f9; }
+        
+        .btn-icon { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 10px; font-size: 18px; cursor: pointer; }
 
-        /* Información de Distancia */
         #distanciaHUD {
-            position:absolute; bottom:110px; right:15px;
-            background: rgba(0,0,0,0.85); color:white;
-            padding:15px; z-index:1500; border-radius:12px;
-            display:none; font-family: 'Courier New', monospace;
+            position:absolute; bottom:110px; right:10px;
+            background: rgba(15, 23, 42, 0.9); color:white;
+            padding:15px; z-index:1500; border-radius:15px;
+            display:none; font-family: monospace; font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* Paneles Deslizantes */
-        #panelDistancia, #panelAlarma {
+        .panel {
             position:absolute; bottom:0; left:0; right:0;
-            background:white; padding:25px; z-index:2000;
-            border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
-            display:none; text-align: center;
+            background: white; padding:25px; z-index:2000;
+            border-radius: 25px 25px 0 0; display:none; text-align: center;
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease-out;
         }
-        #panelAlarma { background: #d90429; color: white; z-index: 3000; }
-
-        /* Botón Flotante Ubicación */
-        #btnUbicacion {
-            position:absolute; bottom:110px; left:15px; z-index:1500;
-            background: white; border-radius: 50%; width: 55px; height: 55px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.25); font-size: 24px;
-            display: flex; align-items: center; justify-content: center;
-        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
         #btnDetener {
-            position:absolute; bottom:40px; left:50%; transform: translateX(-50%);
-            z-index:2500; padding:18px 45px; background: #d90429;
-            color:white; border-radius: 35px; display:none; border: 3px solid white;
-            font-size: 18px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position:absolute; bottom:30px; left:50%; transform: translateX(-50%);
+            z-index:2500; padding:15px 40px; background: var(--danger);
+            color:white; border-radius: 30px; display:none; border: 2px solid white; font-weight: bold;
         }
 
-        /* Grilla de Metros */
-        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 20px 0; }
-        .grid button { background: #f8f9fa; border: 1px solid #eee; padding: 12px 5px; font-size: 14px; }
-        .grid button:disabled { opacity: 0.2; cursor: not-allowed; text-decoration: line-through; }
-        
-        #panelGuardados {
-            position:absolute; top:80px; right:10px; background:white;
-            z-index:1500; padding:15px; border-radius:10px; display:none;
-            max-height: 45vh; overflow-y: auto; width: 220px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
+        .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin: 15px 0; }
+        .grid button { padding: 12px 5px; border-radius: 10px; border: 1px solid #ddd; background: #f8f9fa; font-weight: bold; }
+        .grid button:disabled { opacity: 0.2; }
+
+        .selector-modo { display: flex; justify-content: center; gap: 20px; margin-bottom: 15px; }
+        .modo-btn { padding: 10px 20px; border-radius: 10px; border: 2px solid #ddd; background: white; cursor: pointer; font-size: 20px; }
+        .modo-btn.active { border-color: var(--primary); background: #eff6ff; }
     </style>
 </head>
 <body>
 
-<div class="barra" id="barra">
-    <input id="direccion" placeholder="Ej: Estación Constitución">
-    <button class="btn-blue" onclick="buscarDireccion()">🔍</button>
-    <button onclick="guardarLugar()">💾</button>
-    <button onclick="toggleGuardados()">📋</button>
+<div class="barra">
+    <input id="direccion" placeholder="¿A dónde vamos?">
+    <button class="btn-icon" onclick="buscarDireccion()">🔍</button>
 </div>
 
 <div id="map"></div>
 
-<button id="btnUbicacion" onclick="irMiUbicacion()">🎯</button>
-<button id="btnDetener" onclick="detenerAlarma()">DETENER ALARMA</button>
-
+<button id="btnDetener" onclick="location.reload()">CANCELAR VIAJE</button>
 <div id="distanciaHUD"></div>
 
-<div id="panelGuardados"></div>
-
-<div id="panelDistancia">
-    <h3 style="margin:0 0 10px 0">¿A qué distancia avisar?</h3>
-    <p id="infoDistanciaActual" style="font-size:14px; color:#666"></p>
+<div id="panelDistancia" class="panel">
+    <h3 style="margin-top:0">Configuración de Viaje</h3>
+    <div class="selector-modo">
+        <button id="btnCar" class="modo-btn active" onclick="setModo('car')">🚗</button>
+        <button id="btnFoot" class="modo-btn" onclick="setModo('foot')">🚶</button>
+    </div>
     <div class="grid" id="opciones"></div>
-    <button class="btn-blue" style="width:100%; padding:15px; font-size:16px" onclick="confirmarDistancia()">ESTABLECER ALARMA</button>
+    <button class="btn-icon" style="width:100%; height: 55px;" onclick="confirmarDistancia()">INICIAR GPS</button>
 </div>
 
-<div id="panelAlarma">
-    <h1 style="margin:0; font-size: 32px;">¡LLEGANDO!</h1>
-    <p style="font-size: 18px;">Estás en el radio de aviso.</p>
-    <button style="background:white; color:#d90429; padding:15px 40px; border-radius:10px; font-size:18px" onclick="detenerAlarma()">ENTENDIDO</button>
+<div id="panelAlarma" class="panel" style="background: var(--danger); color: white;">
+    <h1 style="margin:0">🚨 ¡DESPERTATE! 🚨</h1>
+    <p>Ya estás llegando a tu destino.</p>
+    <button style="background:white; color:var(--danger); padding:15px 40px; border-radius:15px; border:none; font-weight:bold; margin-top:10px" onclick="location.reload()">DETENER ALARMA</button>
 </div>
 
-<audio id="sonido" loop src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
+<audio id="sonido" loop src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
 
 <script>
 let map = L.map('map', {zoomControl: false}).setView([-34.6, -58.4], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-let marcadorUsuario = null, circuloPrecision = null;
-let marcadorDestino = null, circuloAlarma = null;
-let destino = null, radioMetros = 300;
-let ubicacionActual = null, distanciaActual = 0;
-let wakeLock = null;
+let marcadorUsuario = null, destino = null, radioMetros = 0, ubicacionActual = null;
+let controlRuteo = null, modoViaje = 'car', wakeLock = null;
 
-// GPS EN TIEMPO REAL
 navigator.geolocation.watchPosition(pos => {
-    const { latitude, longitude, accuracy } = pos.coords;
-    ubicacionActual = [latitude, longitude];
+    const { latitude, longitude } = pos.coords;
+    ubicacionActual = L.latLng(latitude, longitude);
 
     if (!marcadorUsuario) {
-        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 8, color: '#007bff', fillOpacity: 1, weight: 2, fillColor: 'white'}).addTo(map);
-        circuloPrecision = L.circle(ubicacionActual, {radius: accuracy, color: '#007bff', weight: 1, fillOpacity: 0.1}).addTo(map);
+        marcadorUsuario = L.circleMarker(ubicacionActual, {radius: 8, color: '#2563eb', fillColor: 'white', fillOpacity: 1, weight: 3}).addTo(map);
         map.setView(ubicacionActual, 16);
     } else {
         marcadorUsuario.setLatLng(ubicacionActual);
-        circuloPrecision.setLatLng(ubicacionActual).setRadius(accuracy);
     }
 
-    if (destino) {
-        distanciaActual = calcularDistancia(latitude, longitude, destino.lat, destino.lon) * 1000;
-        actualizarHUD();
-        
-        if (distanciaActual <= radioMetros) {
-            activarAlarma();
-        }
+    if (controlRuteo && destino) {
+        controlRuteo.setWaypoints([ubicacionActual, L.latLng(destino.lat, destino.lon)]);
     }
-}, err => console.warn(err), { enableHighAccuracy: true });
+}, null, { enableHighAccuracy: true });
 
-// BUSQUEDA
 async function buscarDireccion() {
     let q = document.getElementById("direccion").value;
-    if (!q) return;
-    
     const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ar`);
     const data = await resp.json();
-    
-    if (data.length > 0) {
-        fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon));
-        document.getElementById("direccion").value = data[0].display_name.split(',')[0];
-    } else {
-        alert("Lugar no encontrado");
-    }
+    if (data.length > 0) fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon));
 }
 
-map.on("contextmenu", e => fijarDestino(e.latlng.lat, e.latlng.lng));
-
-// FIJAR DESTINO Y VALIDAR DISTANCIA
 function fijarDestino(lat, lon) {
-    if (!ubicacionActual) return alert("Esperando señal de GPS...");
-    
+    if (!ubicacionActual) return alert("Esperando señal GPS...");
     destino = { lat, lon };
-    if (marcadorDestino) map.removeLayer(marcadorDestino);
-    if (circuloAlarma) map.removeLayer(circuloAlarma);
-
-    marcadorDestino = L.marker([lat, lon]).addTo(map);
-    map.flyTo([lat, lon], 16);
-    
-    const distReal = calcularDistancia(ubicacionActual[0], ubicacionActual[1], lat, lon) * 1000;
-    distanciaActual = distReal;
-    
-    document.getElementById("infoDistanciaActual").innerText = `Estás a ${Math.round(distReal)} metros de este punto.`;
-    generarBotonesDistancia(distReal);
+    const distVuelo = ubicacionActual.distanceTo(L.latLng(lat, lon));
+    const cont = document.getElementById("opciones");
+    cont.innerHTML = "";
+    [100, 200, 300, 500, 800, 1000, 1500, 2000].forEach(m => {
+        let btn = document.createElement("button");
+        btn.innerText = m + "m";
+        if (m >= distVuelo) btn.disabled = true;
+        btn.onclick = () => {
+            radioMetros = m;
+            document.querySelectorAll(".grid button").forEach(b => {b.style.background = "#f8f9fa"; b.style.color="black"});
+            btn.style.background = "#2563eb"; btn.style.color = "white";
+        };
+        cont.appendChild(btn);
+    });
     document.getElementById("panelDistancia").style.display = "block";
 }
 
-// CORRECCIÓN SOLICITADA: Bloquear metros inválidos
-function generarBotonesDistancia(distMax) {
-    const contenedor = document.getElementById("opciones");
-    contenedor.innerHTML = "";
-    const opciones = [100, 200, 300, 500, 800, 1000, 1500, 2000];
-    
-    // Seleccionar por defecto la primera opción válida
-    radioMetros = 0; 
-
-    opciones.forEach(m => {
-        let btn = document.createElement("button");
-        btn.innerText = m + "m";
-
-        // Si la distancia al destino es menor que el botón, lo deshabilitamos
-        if (m >= distMax) {
-            btn.disabled = true;
-        } else {
-            if (radioMetros === 0) { // Marca el primero disponible
-                radioMetros = m;
-                btn.style.background = "#28a745";
-                btn.style.color = "white";
-            }
-        }
-
-        btn.onclick = () => {
-            radioMetros = m;
-            document.querySelectorAll(".grid button").forEach(b => {
-                if(!b.disabled) { b.style.background = "#f8f9fa"; b.style.color = "black"; }
-            });
-            btn.style.background = "#28a745";
-            btn.style.color = "white";
-        };
-        contenedor.appendChild(btn);
-    });
-
-    if (radioMetros === 0) {
-        alert("¡Estás demasiado cerca del destino para poner una alarma!");
-        document.getElementById("panelDistancia").style.display = "none";
-    }
+function setModo(m) {
+    modoViaje = m;
+    document.getElementById("btnCar").classList.toggle("active", m === 'car');
+    document.getElementById("btnFoot").classList.toggle("active", m === 'foot');
 }
 
 async function confirmarDistancia() {
-    if (radioMetros === 0) return;
-
-    circuloAlarma = L.circle([destino.lat, destino.lon], {
-        radius: radioMetros, color: '#d90429', weight: 2, fillOpacity: 0.15
+    if (radioMetros === 0) return alert("Elegí a cuántos metros avisar");
+    const serviceUrl = modoViaje === 'car' ? 'https://router.project-osrm.org/route/v1/driving' : 'https://router.project-osrm.org/route/v1/foot';
+    controlRuteo = L.Routing.control({
+        waypoints: [ubicacionActual, L.latLng(destino.lat, destino.lon)],
+        router: L.Routing.osrmv1({ serviceUrl: serviceUrl }),
+        addWaypoints: false,
+        lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.7 }] }
     }).addTo(map);
-    
+
+    controlRuteo.on('routesfound', function(e) {
+        const distRuta = e.routes[0].summary.totalDistance;
+        document.getElementById("distanciaHUD").style.display = "block";
+        document.getElementById("distanciaHUD").innerHTML = `<b>GPS EN VIVO</b><br>Ruta: ${Math.round(distRuta)}m<br>Alarma: ${radioMetros}m`;
+        if (distRuta <= radioMetros) activarAlarma();
+    });
+
     document.getElementById("panelDistancia").style.display = "none";
-    document.getElementById("distanciaHUD").style.display = "block";
     document.getElementById("btnDetener").style.display = "block";
-    document.getElementById("barra").style.display = "none";
-    
-    try {
-        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
-    } catch (err) {}
+    document.querySelector(".barra").style.display = "none";
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 
 function activarAlarma() {
-    const panel = document.getElementById("panelAlarma");
-    if (panel.style.display !== "block") {
-        panel.style.display = "block";
-        document.getElementById("sonido").play();
-        if ("vibrate" in navigator) navigator.vibrate([500, 300, 500, 300, 500]);
-    }
+    if (document.getElementById("panelAlarma").style.display === "block") return;
+    document.getElementById("panelAlarma").style.display = "block";
+    const audio = document.getElementById("sonido");
+    audio.volume = 1.0; // Forzamos volumen al máximo
+    audio.play();
+    if ("vibrate" in navigator) navigator.vibrate([1000, 500, 1000, 500, 1000]); // Vibración más larga
 }
-
-function detenerAlarma() {
-    document.getElementById("sonido").pause();
-    document.getElementById("sonido").currentTime = 0;
-    document.getElementById("panelAlarma").style.display = "none";
-    document.getElementById("btnDetener").style.display = "none";
-    document.getElementById("distanciaHUD").style.display = "none";
-    document.getElementById("barra").style.display = "flex";
-    if (circuloAlarma) map.removeLayer(circuloAlarma);
-    if (marcadorDestino) map.removeLayer(marcadorDestino);
-    destino = null;
-    if (wakeLock) wakeLock.release();
-}
-
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-}
-
-function actualizarHUD() {
-    document.getElementById("distanciaHUD").innerHTML = `
-        <b style="color:#007bff">DESTINO FIJADO</b><br>
-        Faltan: ${Math.round(distanciaActual)}m<br>
-        Aviso: ${radioMetros}m
-    `;
-}
-
-function irMiUbicacion() {
-    if (ubicacionActual) map.flyTo(ubicacionActual, 16);
-}
-
-function guardarLugar() {
-    if (!destino) return alert("Buscá un destino primero");
-    const nombre = prompt("Nombre:");
-    if (!nombre) return;
-    const lista = JSON.parse(localStorage.getItem("gps_favs") || "[]");
-    lista.push({ nombre, lat: destino.lat, lon: destino.lon });
-    localStorage.setItem("gps_favs", JSON.stringify(lista));
-    renderGuardados();
-}
-
-function renderGuardados() {
-    const p = document.getElementById("panelGuardados");
-    const lista = JSON.parse(localStorage.getItem("gps_favs") || "[]");
-    p.innerHTML = "<b>Guardados</b><hr>";
-    lista.forEach(l => {
-        const d = document.createElement("div");
-        d.style.margin = "10px 0";
-        d.innerHTML = `<button style="width:100%; text-align:left; background:#eee" onclick="fijarDestino(${l.lat}, ${l.lon}); toggleGuardados()">${l.nombre}</button>`;
-        p.appendChild(d);
-    });
-}
-
-function toggleGuardados() {
-    const p = document.getElementById("panelGuardados");
-    p.style.display = p.style.display === "none" ? "block" : "none";
-}
-
-renderGuardados();
 </script>
 </body>
 </html>
