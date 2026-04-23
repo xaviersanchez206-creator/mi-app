@@ -1,147 +1,234 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>GPS ALARMA PRO - Optimizado</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alarma GPS PRO FINAL</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-:root {
-    --bg-dark: #0f172a;
-    --card-dark: #1e293b;
-    --accent: #38bdf8;
-    --danger: #ef4444;
-    --text: #f8fafc;
-}
+body{margin:0;font-family:Arial}
+#map{height:100vh}
+.barra{position:absolute;top:10px;left:10px;right:10px;z-index:1000;display:flex;gap:5px}
+input{flex:1;padding:10px}
+button{padding:10px}
 
-body { margin:0; font-family:system-ui; background:var(--bg-dark); color:var(--text); overflow:hidden; }
-#map { height:100vh; width:100vw; }
-
-.search-container {
-    position:absolute; top:15px; left:10px; right:10px; z-index:1000;
-    display:flex; gap:8px; background:var(--card-dark);
-    padding:10px; border-radius:16px;
-}
-
-input { flex:1; background:#0f172a; border:1px solid #334155; color:white; padding:12px; border-radius:10px; }
-button { padding:12px; border-radius:10px; border:none; font-weight:bold; }
-.btn-primary { background:var(--accent); }
-
-#hud {
-    position:absolute; bottom:120px; right:10px;
-    background:#000c; padding:15px; border-radius:15px;
-    display:none;
-}
-
-#alarm-overlay {
-    position:absolute; inset:0; background:var(--danger);
-    display:none; align-items:center; justify-content:center;
-    flex-direction:column;
-}
+#distanciaHUD{position:absolute;bottom:20px;right:10px;background:black;color:white;padding:12px;z-index:1500;border-radius:8px;display:none}
+#btnDetener{position:absolute;bottom:20px;left:20px;z-index:2000;padding:12px;background:red;color:white;border:none;border-radius:8px;display:none}
+#panelGuardados{position:absolute;top:60px;right:10px;background:white;z-index:1500;padding:10px;max-height:200px;overflow:auto;border-radius:5px;display:none}
+#panelDistancia{position:absolute;bottom:0;left:0;right:0;background:white;padding:15px;display:none;z-index:2000}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+#panelAlarma{position:absolute;inset:0;background:red;color:white;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:3000}
+#btnUbicacion{position:absolute;bottom:80px;left:20px;z-index:1500;padding:10px}
 </style>
 </head>
 <body>
 
-<div class="search-container">
-    <input id="target-input" placeholder="Destino...">
-    <button class="btn-primary" onclick="searchLoc()">🔍</button>
+<div class="barra" id="barra">
+<input id="direccion" placeholder="Dirección">
+<button onclick="buscarDireccion()">Buscar</button>
+<button onclick="guardarLugar()">💾</button>
+<button onclick="toggleGuardados()">⋮</button>
 </div>
 
 <div id="map"></div>
+<div id="distanciaHUD"></div>
+<button id="btnDetener" onclick="detenerAlarma()">DETENER</button>
+<div id="panelGuardados"></div>
+<button id="btnUbicacion" onclick="irMiUbicacion()">Mi ubicación</button>
 
-<div id="hud">
-    <div id="distance">---</div>
+<div id="panelDistancia">
+<h3>Distancia</h3>
+<div class="grid" id="opciones"></div>
+<button onclick="confirmarDistancia()">ACEPTAR</button>
 </div>
 
-<div id="alarm-overlay">
-    <h1>🚨 LLEGANDO 🚨</h1>
-    <button onclick="stopAlarm()">OK</button>
+<div id="panelAlarma">
+<h1>🚨 LLEGANDO 🚨</h1>
+<button onclick="detenerAlarma()">DETENER</button>
 </div>
 
-<audio id="audio" loop>
-<source src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3">
-</audio>
+<audio id="alarma" src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3"></audio>
 
 <script>
-let map = L.map('map').setView([-34.61, -58.41], 13);
+let map=L.map('map',{zoomControl:false}).setView([-34.6,-58.38],15);
+L.control.zoom({position:'bottomleft'}).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let userMarker, targetMarker;
-let userPos, targetCoords;
-let alertDistance = 300;
-let alarmTriggered = false;
-let lastPositions = [];
-let lastDistance = null;
+let userPos, destino, marcadorUsuario, marcadorDestino, circulo;
+let seleccion=300, radio=0.3, alarmaActiva=false;
+let lastPositions=[], lastDistance=null, distanciaActual=0;
 
-// suavizado GPS
 function smooth(pos){
-    lastPositions.push(pos);
-    if(lastPositions.length > 5) lastPositions.shift();
-
-    let lat = lastPositions.reduce((a,p)=>a+p.lat,0)/lastPositions.length;
-    let lng = lastPositions.reduce((a,p)=>a+p.lng,0)/lastPositions.length;
-    return L.latLng(lat,lng);
+ lastPositions.push(pos);
+ if(lastPositions.length>5) lastPositions.shift();
+ let lat=lastPositions.reduce((a,p)=>a+p.lat,0)/lastPositions.length;
+ let lng=lastPositions.reduce((a,p)=>a+p.lng,0)/lastPositions.length;
+ return L.latLng(lat,lng);
 }
 
 navigator.geolocation.watchPosition(p=>{
-    let raw = L.latLng(p.coords.latitude,p.coords.longitude);
-    userPos = smooth(raw);
+ let raw=L.latLng(p.coords.latitude,p.coords.longitude);
+ userPos=smooth(raw);
 
-    if(!userMarker){
-        userMarker = L.circleMarker(userPos).addTo(map);
-        map.setView(userPos,16);
-    } else userMarker.setLatLng(userPos);
+ if(!marcadorUsuario){
+  marcadorUsuario=L.circleMarker(userPos,{radius:8,color:'blue'}).addTo(map);
+  map.setView(userPos,16);
+ }else marcadorUsuario.setLatLng(userPos);
 
-    if(targetCoords) checkDistance();
+ if(destino) checkDistance();
+},null,{enableHighAccuracy:true,maximumAge:3000});
 
-},null,{maximumAge:5000,timeout:10000});
+map.on('click',e=>{
+ ponerDestino(e.latlng.lat,e.latlng.lng);
+ mostrarOpciones();
+});
 
-async function searchLoc(){
-    let q = document.getElementById('target-input').value;
-    let r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`);
-    let d = await r.json();
-    if(d[0]) setTarget(d[0].lat,d[0].lon);
+function buscarDireccion(){
+ let dir=document.getElementById('direccion').value.trim();
+ if(!dir) return alert('Escribí dirección');
+
+ fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=ar&limit=5&q=${encodeURIComponent(dir)}`)
+ .then(r=>r.json())
+ .then(data=>{
+  if(!data.length) return alert('No encontrada');
+  let d=data[0];
+  ponerDestino(d.lat,d.lon);
+  map.setView([d.lat,d.lon],17);
+  mostrarOpciones();
+ });
 }
 
-function setTarget(lat,lon){
-    targetCoords = L.latLng(lat,lon);
-    if(targetMarker) map.removeLayer(targetMarker);
-    targetMarker = L.marker(targetCoords).addTo(map);
-    alarmTriggered = false;
-    lastDistance = null;
+function ponerDestino(lat,lon){
+ destino=L.latLng(lat,lon);
+ alarmaActiva=false;
+ lastDistance=null;
+
+ if(marcadorDestino) map.removeLayer(marcadorDestino);
+ if(circulo) map.removeLayer(circulo);
+
+ marcadorDestino=L.marker(destino).addTo(map);
+ document.getElementById('distanciaHUD').style.display='block';
 }
 
 function checkDistance(){
-    let d = Math.round(userPos.distanceTo(targetCoords));
-    document.getElementById('distance').innerText = d+" m";
+ let d=Math.round(userPos.distanceTo(destino));
+ distanciaActual=d;
+ document.getElementById('distanciaHUD').innerHTML=`${d} m<br>Alarma: ${seleccion} m`;
 
-    if(lastDistance !== null){
-        let approaching = d < lastDistance;
+ if(lastDistance!==null){
+  let approaching=d<lastDistance;
+  if(!alarmaActiva && approaching && d<=seleccion){
+   activarAlarma();
+  }
+ }
 
-        if(!alarmTriggered && approaching && d <= alertDistance){
-            triggerAlarm();
-            alarmTriggered = true;
-        }
-    }
-
-    lastDistance = d;
+ lastDistance=d;
 }
 
-function triggerAlarm(){
-    document.getElementById('alarm-overlay').style.display='flex';
-    document.getElementById('audio').play();
-    navigator.vibrate?.([500,300,500]);
+function mostrarOpciones(){
+ if(!userPos) return alert('Esperando GPS');
+
+ let cont=document.getElementById('opciones');
+ cont.innerHTML='';
+
+ let maxReal=Math.floor((distanciaActual-100)/100)*100;
+ if(maxReal<100) return alert('Muy cerca');
+
+ for(let i=100;i<=3000;i+=100){
+  let b=document.createElement('button');
+  b.innerText=i+'m';
+
+  if(i>maxReal){ b.disabled=true; b.style.opacity=0.3; }
+
+  b.onclick=()=>{
+   if(i>maxReal) return;
+   seleccion=i;
+   document.querySelectorAll('.grid button').forEach(x=>x.style.background='');
+   b.style.background='lightgreen';
+  };
+
+  cont.appendChild(b);
+ }
+
+ document.getElementById('panelDistancia').style.display='block';
 }
 
-function stopAlarm(){
-    document.getElementById('alarm-overlay').style.display='none';
-    let a = document.getElementById('audio');
-    a.pause(); a.currentTime=0;
+function confirmarDistancia(){
+ radio=seleccion;
+ if(circulo) map.removeLayer(circulo);
+
+ circulo=L.circle(destino,{radius:radio,color:'red',fill:false}).addTo(map);
+
+ document.getElementById('panelDistancia').style.display='none';
+ document.getElementById('barra').style.display='none';
+ document.getElementById('btnDetener').style.display='block';
 }
 
+function activarAlarma(){
+ if(alarmaActiva) return;
+ alarmaActiva=true;
+
+ document.getElementById('panelAlarma').style.display='flex';
+ let a=document.getElementById('alarma');
+ a.play();
+ navigator.vibrate?.([500,300,500]);
+}
+
+function detenerAlarma(){
+ let a=document.getElementById('alarma');
+ a.pause(); a.currentTime=0;
+
+ document.getElementById('panelAlarma').style.display='none';
+ document.getElementById('btnDetener').style.display='none';
+ document.getElementById('barra').style.display='flex';
+ document.getElementById('distanciaHUD').style.display='none';
+
+ destino=null;
+ alarmaActiva=false;
+ lastDistance=null;
+
+ if(marcadorDestino) map.removeLayer(marcadorDestino);
+ if(circulo) map.removeLayer(circulo);
+}
+
+function irMiUbicacion(){ if(userPos) map.setView(userPos,16); }
+
+function guardarLugar(){
+ if(!destino) return alert('No hay destino');
+ let nombre=prompt('Nombre');
+ if(!nombre) return;
+
+ let lugares=JSON.parse(localStorage.getItem('lugares')||'[]');
+ lugares.push({nombre,lat:destino.lat,lng:destino.lng});
+ localStorage.setItem('lugares',JSON.stringify(lugares));
+ cargarGuardados();
+}
+
+function cargarGuardados(){
+ let cont=document.getElementById('panelGuardados');
+ cont.innerHTML='<b>Guardados</b><br>';
+
+ let lugares=JSON.parse(localStorage.getItem('lugares')||'[]');
+ lugares.forEach(l=>{
+  let b=document.createElement('button');
+  b.innerText=l.nombre;
+  b.onclick=()=>{
+   ponerDestino(l.lat,l.lng);
+   map.setView([l.lat,l.lng],17);
+   mostrarOpciones();
+  };
+  cont.appendChild(b);
+ });
+}
+
+function toggleGuardados(){
+ let p=document.getElementById('panelGuardados');
+ p.style.display=(p.style.display==='none')?'block':'none';
+}
+
+cargarGuardados();
 </script>
 
 </body>
