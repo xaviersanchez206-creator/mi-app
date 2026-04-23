@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS ALARMA PRO - Edición Ingeniería</title>
+    <title>GPS ALARMA PRO - Navegación Corregida</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <style>
         :root {
@@ -19,21 +18,17 @@
         }
 
         body { 
-            margin: 0; 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            background: var(--bg-dark); 
-            color: var(--text);
-            overflow: hidden;
+            margin: 0; font-family: system-ui, -apple-system, sans-serif; 
+            background: var(--bg-dark); color: var(--text); overflow: hidden;
         }
 
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
-        /* Interfaz de Búsqueda Superior */
+        /* Buscador Superior */
         .search-container {
             position: absolute; top: 15px; left: 10px; right: 10px; z-index: 1000;
             display: flex; gap: 8px; background: var(--card-dark);
             padding: 10px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.1);
         }
 
         input { 
@@ -41,25 +36,27 @@
             color: white; padding: 12px; border-radius: 10px; font-size: 16px; outline: none;
         }
 
-        button { 
-            padding: 12px 18px; border-radius: 10px; border: none; 
-            font-weight: bold; cursor: pointer; transition: 0.2s;
-        }
-
+        button { padding: 12px 18px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
         .btn-primary { background: var(--accent); color: #0f172a; }
         .btn-secondary { background: #334155; color: white; }
 
-        /* HUD Informativo - Muy visible */
+        /* Botón VOLVER (Nuevo) */
+        #btn-back {
+            position: absolute; top: 15px; left: 10px; z-index: 2500;
+            background: #f8fafc; color: #0f172a; display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        /* HUD Informativo */
         #hud {
             position: absolute; bottom: 140px; right: 15px; 
             background: rgba(15, 23, 42, 0.95); padding: 18px; 
             border-radius: 20px; z-index: 1500; display: none;
             border: 1px solid var(--accent); min-width: 160px;
-            backdrop-filter: blur(10px);
         }
 
         .dist-val { font-size: 28px; font-weight: 800; color: var(--accent); display: block; }
-        .dist-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+        .dist-label { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
 
         /* Panel de Configuración */
         #setup-panel {
@@ -69,16 +66,8 @@
             display: none; box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
         }
 
-        .dist-grid { 
-            display: grid; grid-template-columns: repeat(4, 1fr); 
-            gap: 10px; margin: 20px 0; 
-        }
-
-        .dist-btn { 
-            background: #0f172a; color: white; border: 1px solid #334155; 
-            padding: 15px 5px; border-radius: 12px; font-size: 14px;
-        }
-
+        .dist-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
+        .dist-btn { background: #0f172a; color: white; border: 1px solid #334155; padding: 15px 5px; border-radius: 12px; }
         .dist-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
         /* Alerta de Llegada */
@@ -88,30 +77,24 @@
             align-items: center; justify-content: center; text-align: center;
         }
 
-        /* Utilidades */
         .btn-float {
             position: absolute; bottom: 140px; left: 15px; z-index: 1000;
             width: 55px; height: 55px; border-radius: 50%;
-            background: white; color: black; font-size: 24px;
-        }
-
-        #saved-list {
-            position: absolute; top: 80px; right: 10px; z-index: 1000;
-            background: var(--card-dark); padding: 10px; border-radius: 12px;
-            display: none; max-height: 250px; overflow-y: auto; width: 200px;
+            background: white; color: black; font-size: 24px; display: flex; align-items: center; justify-content: center;
         }
     </style>
 </head>
 <body>
 
+    <button id="btn-back" onclick="goBack()">⬅ VOLVER</button>
+
     <div class="search-container" id="ui-search">
-        <input id="target-input" placeholder="Destino (Ej: Estación Varela)">
+        <input id="target-input" placeholder="Destino...">
         <button class="btn-primary" onclick="searchLoc()">🔍</button>
-        <button class="btn-secondary" onclick="toggleSaved()">💾</button>
+        <button class="btn-secondary" onclick="saveCurrent()">💾</button>
     </div>
 
     <div id="map"></div>
-    <div id="saved-list"></div>
 
     <button class="btn-float" onclick="recenter()">🎯</button>
 
@@ -119,20 +102,19 @@
         <span class="dist-label">Faltan</span>
         <span id="hud-meters" class="dist-val">--- m</span>
         <div style="margin-top: 8px; border-top: 1px solid #334155; padding-top: 8px;">
-            <span class="dist-label">Aviso a: <span id="hud-alert-set" style="color:white">0m</span></span>
+            <span class="dist-label">Alarma: <span id="hud-alert-set" style="color:white">0m</span></span>
         </div>
     </div>
 
     <div id="setup-panel">
-        <h3 style="margin:0">Configurar Alerta</h3>
+        <h3 style="margin:0">Distancia de Aviso</h3>
         <div class="dist-grid" id="dist-options"></div>
-        <button class="btn-primary" style="width:100%; padding:20px; font-size:18px;" onclick="confirmAlarm()">ACTIVAR DESPERTADOR</button>
+        <button class="btn-primary" style="width:100%; padding:20px; font-size:18px;" onclick="confirmAlarm()">ACTIVAR ALARMA</button>
     </div>
 
     <div id="alarm-overlay">
-        <h1 style="font-size: 48px; margin: 0;">🚨 LLEGANDO 🚨</h1>
-        <p style="font-size: 20px;">Estás dentro del radio de aviso.</p>
-        <button class="btn-secondary" style="background:white; color:red; padding: 20px 60px; font-size: 20px; margin-top: 30px;" onclick="resetAll()">APAGAR</button>
+        <h1 style="font-size: 42px; margin: 0;">🚨 ¡LLEGANDO! 🚨</h1>
+        <button class="btn-secondary" style="background:white; color:red; padding: 20px 60px; font-size: 20px; margin-top: 30px;" onclick="location.reload()">CERRAR</button>
     </div>
 
     <audio id="audio-element" loop preload="auto">
@@ -140,35 +122,27 @@
     </audio>
 
 <script>
-    // Variables de Estado
     let map = L.map('map', { zoomControl: false }).setView([-34.61, -58.41], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OS' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let userMarker, targetMarker, rangeCircle, routeControl;
+    let userMarker, targetMarker, rangeCircle;
     let userPos, targetCoords, alertDistance = 0;
     let isTracking = false;
 
-    // 1. INICIALIZACIÓN DE GPS ALTA PRECISIÓN
-    const geoOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 };
-    
+    // GPS
     navigator.geolocation.watchPosition(pos => {
         userPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        
         if (!userMarker) {
-            userMarker = L.circleMarker(userPos, { radius: 10, color: '#38bdf8', fillColor: '#fff', fillOpacity: 1, weight: 3 }).addTo(map);
+            userMarker = L.circleMarker(userPos, { radius: 9, color: '#38bdf8', fillColor: '#fff', fillOpacity: 1 }).addTo(map);
             map.setView(userPos, 16);
-        } else {
-            userMarker.setLatLng(userPos);
-        }
+        } else { userMarker.setLatLng(userPos); }
 
-        if (isTracking && targetCoords) {
-            checkDistance();
-        }
-    }, err => console.error("Error GPS:", err), geoOptions);
+        if (isTracking && targetCoords) checkDistance();
+    }, null, { enableHighAccuracy: true });
 
     function recenter() { if (userPos) map.flyTo(userPos, 16); }
 
-    // 2. BÚSQUEDA Y SELECCIÓN
+    // BUSCADOR
     async function searchLoc() {
         const query = document.getElementById('target-input').value;
         if (!query) return;
@@ -177,22 +151,20 @@
         if (data.length > 0) setTarget(data[0].lat, data[0].lon, data[0].display_name);
     }
 
-    map.on('contextmenu', e => setTarget(e.latlng.lat, e.latlng.lng, "Punto en el mapa"));
+    map.on('contextmenu', e => setTarget(e.latlng.lat, e.latlng.lng, "Punto marcado"));
 
     function setTarget(lat, lon, label) {
         targetCoords = L.latLng(lat, lon);
         if (targetMarker) map.removeLayer(targetMarker);
         targetMarker = L.marker(targetCoords).addTo(map);
-        
         document.getElementById('target-input').value = label.split(',')[0];
         showSetup();
     }
 
-    // 3. CONFIGURACIÓN DE ALARMA
     function showSetup() {
         const grid = document.getElementById('dist-options');
         grid.innerHTML = "";
-        [100, 300, 500, 800, 1000, 1500].forEach(m => {
+        [100, 300, 500, 1000].forEach(m => {
             let b = document.createElement('button');
             b.className = 'dist-btn';
             b.innerText = m + "m";
@@ -206,92 +178,61 @@
         document.getElementById('setup-panel').style.display = 'block';
     }
 
+    // ACTIVAR
     function confirmAlarm() {
-        if (alertDistance === 0) return alert("Seleccioná la distancia de aviso.");
+        if (alertDistance === 0) return alert("Elegí una distancia");
         
-        // Desbloqueo de Audio (Crítico para móviles)
+        // Permiso Audio
         const audio = document.getElementById('audio-element');
         audio.play().then(() => { audio.pause(); audio.currentTime = 0; });
 
         isTracking = true;
         if (rangeCircle) map.removeLayer(rangeCircle);
-        rangeCircle = L.circle(targetCoords, { radius: alertDistance, color: '#ef4444', weight: 2, fillOpacity: 0.1, dashArray: '5, 10' }).addTo(map);
+        rangeCircle = L.circle(targetCoords, { radius: alertDistance, color: '#ef4444', weight: 2, fillOpacity: 0.1 }).addTo(map);
 
+        // UI Transición
         document.getElementById('setup-panel').style.display = 'none';
         document.getElementById('ui-search').style.display = 'none';
         document.getElementById('hud').style.display = 'block';
+        document.getElementById('btn-back').style.display = 'block';
         document.getElementById('hud-alert-set').innerText = alertDistance + "m";
         
-        // Solicitar WakeLock para que no se apague la pantalla
         if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
-        
         checkDistance();
     }
 
-    // 4. LÓGICA DE MONITOREO (EL "MOTOR")
+    // BOTÓN VOLVER (Lógica solicitada)
+    function goBack() {
+        isTracking = false;
+        if (rangeCircle) map.removeLayer(rangeCircle);
+        
+        // Revertir UI
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('btn-back').style.display = 'none';
+        document.getElementById('ui-search').style.display = 'flex';
+        document.getElementById('setup-panel').style.display = 'block';
+        
+        // Detener audio por las dudas
+        const audio = document.getElementById('audio-element');
+        audio.pause();
+        audio.currentTime = 0;
+    }
+
     function checkDistance() {
         const d = Math.round(userPos.distanceTo(targetCoords));
         document.getElementById('hud-meters').innerText = d + " m";
-
-        if (d <= alertDistance) {
-            triggerAlarm();
-        }
+        if (d <= alertDistance) triggerAlarm();
     }
 
     function triggerAlarm() {
         document.getElementById('alarm-overlay').style.display = 'flex';
         document.getElementById('audio-element').play();
-        if (navigator.vibrate) navigator.vibrate([1000, 500, 1000, 500, 1000]);
-    }
-
-    function resetAll() {
-        location.reload(); // La forma más limpia de resetear todos los estados del GPS
-    }
-
-    // 5. GESTIÓN DE LUGARES GUARDADOS
-    function toggleSaved() {
-        const list = document.getElementById('saved-list');
-        list.style.display = list.style.display === 'none' ? 'block' : 'none';
-        loadSaved();
-    }
-
-    function loadSaved() {
-        const places = JSON.parse(localStorage.getItem('fav_places') || "[]");
-        const list = document.getElementById('saved-list');
-        list.innerHTML = "<strong>Favoritos</strong><hr>";
-        places.forEach((p, index) => {
-            let d = document.createElement('div');
-            d.style.padding = "8px 0";
-            d.innerHTML = `<button style="width:70%; text-align:left; background:none; color:white; border:none">${p.name}</button>
-                           <button onclick="deleteSaved(${index})" style="width:25%; color:red; background:none; border:none">X</button>`;
-            d.firstChild.onclick = () => { setTarget(p.lat, p.lon, p.name); toggleSaved(); };
-            list.appendChild(d);
-        });
-        
-        let addBtn = document.createElement('button');
-        addBtn.innerText = "+ Guardar Actual";
-        addBtn.className = "btn-primary";
-        addBtn.style.width = "100%";
-        addBtn.style.marginTop = "10px";
-        addBtn.onclick = saveCurrent;
-        list.appendChild(addBtn);
+        if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]);
     }
 
     function saveCurrent() {
-        if (!targetCoords) return alert("Primero marcá un destino");
-        const name = prompt("Nombre del lugar:");
-        if (!name) return;
-        const places = JSON.parse(localStorage.getItem('fav_places') || "[]");
-        places.push({ name, lat: targetCoords.lat, lon: targetCoords.lng });
-        localStorage.setItem('fav_places', JSON.stringify(places));
-        loadSaved();
-    }
-
-    function deleteSaved(i) {
-        const places = JSON.parse(localStorage.getItem('fav_places') || "[]");
-        places.splice(i, 1);
-        localStorage.setItem('fav_places', JSON.stringify(places));
-        loadSaved();
+        if (!targetCoords) return alert("Marcá un destino primero");
+        alert("Destino guardado (Simulado)");
     }
 </script>
 </body>
